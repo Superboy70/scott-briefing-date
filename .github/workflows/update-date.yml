@@ -1,0 +1,24 @@
+name: Update today KST date
+on:
+  schedule:
+    - cron: '55 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-date:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write today KST date to today.txt
+        run: |
+          TZ=Asia/Seoul date "+%Y-%m-%d (%a)" > today.txt
+          echo "today.txt updated: $(cat today.txt)"
+
+      - name: Commit and push
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add today.txt
+          git commit -m "date: $(cat today.txt)" || echo "No changes to commit"
+          git push
