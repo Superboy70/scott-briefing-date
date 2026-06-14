@@ -1,7 +1,7 @@
 name: Update today KST date
 on:
   schedule:
-    - cron: '55 21 * * *'
+    - cron: '50 21 * * *'
   workflow_dispatch:
 
 jobs:
