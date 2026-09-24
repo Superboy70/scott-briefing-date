@@ -1,0 +1,17 @@
+{
+  "name": "마계 성전 - Demon Crusade",
+  "short_name": "마계 성전",
+  "description": "디아블로식 파밍과 마계촌식 액션을 합친 횡스크롤 액션 RPG",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0806",
+  "theme_color": "#0b0806",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

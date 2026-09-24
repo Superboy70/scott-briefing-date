@@ -1,0 +1,62 @@
+name: Build Demon Crusade APK
+on:
+  push:
+    paths:
+      - 'demon-crusade/**'
+      - '.github/workflows/build-demon-crusade-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demon-crusade
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create and patch Android project
+        run: |
+          npx cap add android
+          node scripts/patch-android.mjs
+          npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../demon-crusade.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demon-crusade-apk
+          path: demon-crusade/demon-crusade.apk
+
+      - name: Publish to release (demon-crusade-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: demon-crusade-latest
+          name: 마계 성전 (최신 빌드)
+          prerelease: true
+          files: demon-crusade/demon-crusade.apk
+          body: |
+            마계 성전 Android APK (Android 13~16 대응, minSdk 24 / targetSdk 36)
+            브랜치: ${{ github.ref_name }} · 커밋: ${{ github.sha }}

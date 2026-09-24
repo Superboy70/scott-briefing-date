@@ -1,0 +1,10 @@
+{
+  "appId": "com.itx.demoncrusade",
+  "appName": "마계 성전",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0b0806",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
