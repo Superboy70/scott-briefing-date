@@ -33,6 +33,33 @@ function loadSettings() {
   } catch (e) { /* 무시 */ }
 }
 
+// ---------- 확인/입력 창 (브라우저 confirm/prompt 대신: 웹뷰·임베드 환경에서도 동작) ----------
+function modal(html, onClick) {
+  const d = document.createElement('div');
+  d.className = 'modal';
+  d.innerHTML = `<div class="panel center">${html}</div>`;
+  document.body.appendChild(d);
+  d.addEventListener('click', e => {
+    const b = e.target.closest('[data-m]');
+    if (!b) return;
+    const keep = onClick(b.dataset.m, d) === false;
+    if (!keep) d.remove();
+  });
+  return d;
+}
+function askConfirm(msg, onYes, yesLabel = '확인') {
+  modal(`<p>${msg}</p><div class="acts" style="justify-content:center"><button class="primary" data-m="y">${yesLabel}</button><button data-m="n">취소</button></div>`,
+    m => { if (m === 'y') onYes(); });
+}
+function askText(msg, value, onOk) {
+  const d = modal(`<p>${msg}</p><textarea id="modal-text" rows="4" style="width:100%;font-size:12px" ${onOk ? '' : 'readonly'}></textarea>
+    <div class="acts" style="justify-content:center">${onOk ? '<button class="primary" data-m="y">확인</button>' : ''}<button data-m="n">닫기</button></div>`,
+    (m, el) => { if (m === 'y' && onOk) onOk(el.querySelector('textarea').value.trim()); });
+  const ta = d.querySelector('textarea');
+  ta.value = value || '';
+  if (!onOk) { ta.focus(); ta.select(); }
+}
+
 // ---------- 토스트 ----------
 let toastTimer = null;
 function toast(html) {
@@ -574,7 +601,7 @@ const ACTIONS = {
   title: goTitle,
   continue: () => { C = loadGame(); calcStats(); updateHudButtons(); enterTown(); },
   newGame: () => {
-    if (hasSave() && !confirm('기존 저장 데이터를 덮어씁니다. 계속할까요?')) return;
+    if (hasSave()) return askConfirm('기존 저장 데이터를 덮어씁니다. 계속할까요?', goClassSelect, '덮어쓰기');
     goClassSelect();
   },
   pickClass: cls => { newCharacter(cls); updateHudButtons(); saveGame(); beginStage(0); },
@@ -668,8 +695,10 @@ const ACTIONS = {
   drop: () => {
     const it = selItem();
     if (!it || G.sel.src !== 'inv') return;
-    if (it.rarity !== 'normal' && !confirm(`${it.name}을(를) 버릴까요?`)) return;
-    C.inv.splice(G.sel.key, 1); G.sel = null; renderSub();
+    const idx = G.sel.key;
+    const doDrop = () => { if (C.inv[idx] === it) C.inv.splice(idx, 1); G.sel = null; renderSub(); };
+    if (it.rarity !== 'normal') return askConfirm(`${displayName(it)}을(를) 버릴까요?`, doDrop, '버리기');
+    doDrop();
   },
   sortInv: () => { C.inv.sort(itemSort); G.sel = null; renderSub(); },
   sortStash: () => { C.stash.sort(itemSort); G.sel = null; saveGame(); renderSub(); },
@@ -709,11 +738,16 @@ const ACTIONS = {
   salvage: () => {
     const it = selItem();
     if (!it || G.sel.src !== 'inv') return;
-    if ((it.rarity === 'unique' || it.plus >= 5) && !confirm(`${displayName(it)}을(를) 분해할까요?`)) return;
-    const y = craftSalvage(it);
-    C.inv.splice(G.sel.key, 1); G.sel = null;
-    G.craftMsg = `♻ 분해 완료: ${matsText(y) || '재료 없음'}`;
-    Audio8.play('hit'); saveGame(); renderSub();
+    const idx = G.sel.key;
+    const doSalvage = () => {
+      if (C.inv[idx] !== it) return;
+      const y = craftSalvage(it);
+      C.inv.splice(idx, 1); G.sel = null;
+      G.craftMsg = `♻ 분해 완료: ${matsText(y) || '재료 없음'}`;
+      Audio8.play('hit'); saveGame(); renderSub();
+    };
+    if (it.rarity === 'unique' || it.plus >= 5) return askConfirm(`${displayName(it)}을(를) 분해할까요?`, doSalvage, '분해');
+    doSalvage();
   },
   recipe: id => {
     const it = selItem();
@@ -759,11 +793,14 @@ const ACTIONS = {
     try { code = btoa(unescape(encodeURIComponent(localStorage.getItem(SAVE_KEY) || ''))); } catch (e) { /* 무시 */ }
     if (!code) return;
     const done = () => toast('백업 코드를 복사했습니다. 메모장 등에 붙여넣어 보관하세요.');
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, () => prompt('아래 코드를 길게 눌러 복사하세요', code));
-    else prompt('아래 코드를 길게 눌러 복사하세요', code);
+    const show = () => askText('아래 코드를 길게 눌러 모두 선택한 뒤 복사하세요.', code, null);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, show);
+      else show();
+    } catch (e) { show(); }
   },
   importSave: () => {
-    const code = prompt('세이브 백업 코드를 붙여넣으세요');
+    askText('세이브 백업 코드를 붙여넣으세요.', '', code => {
     if (!code) return;
     try {
       const json = decodeURIComponent(escape(atob(code.trim())));
@@ -773,12 +810,13 @@ const ACTIONS = {
       toast('복원했습니다');
       goTitle();
     } catch (e) { toast('올바른 백업 코드가 아닙니다'); }
+    });
   },
   toggleSfx: () => { Audio8.setSfx(!Audio8.sfxOn); saveSettings(); renderSettings(); },
   fullscreen: () => requestFullscreen(),
-  wipe: () => { if (confirm('저장 데이터를 삭제할까요? 되돌릴 수 없습니다.')) { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ } goTitle(); } },
+  wipe: () => askConfirm('저장 데이터를 삭제할까요? 되돌릴 수 없습니다.', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ } goTitle(); }, '삭제'),
   resume: resumeGame,
-  portal: () => { if (confirm('마을로 귀환할까요? 이 지역은 처음부터(체크포인트) 다시 진행합니다.')) { C.armorCur = P.armor; enterTown(); } },
+  portal: () => askConfirm('마을로 귀환할까요? 이 지역은 처음부터(체크포인트) 다시 진행합니다.', () => { C.armorCur = P.armor; enterTown(); }, '귀환'),
 };
 
 function afterEquipChange(oldMax) {

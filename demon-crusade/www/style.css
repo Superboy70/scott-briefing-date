@@ -344,3 +344,11 @@ table.stats td:last-child { text-align: right; }
 .portraits { display: flex; gap: 4px; align-items: flex-end; justify-content: center; background: radial-gradient(rgba(199,161,90,.18), transparent 70%); border-radius: 6px; }
 .portraits img { width: 96px; height: 96px; image-rendering: pixelated; }
 .portraits img.bare { width: 64px; height: 64px; opacity: .8; }
+
+.modal {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .6); padding: 16px;
+}
+.modal .panel { max-width: 420px; }
+.modal textarea { background: #0b0806; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px; user-select: text; -webkit-user-select: text; touch-action: auto; }

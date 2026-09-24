@@ -187,6 +187,6 @@ loadSettings();
 goTitle();
 requestAnimationFrame(frame);
 
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !isNative) {
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !isNative && window.top === window) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

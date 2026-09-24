@@ -1,3 +1,4 @@
-node_modules/
-android/
 *.apk
+android/
+dist/
+node_modules/
