@@ -15,7 +15,30 @@ if (!xml.includes('screenOrientation')) {
 if (!xml.includes('appCategory')) {
   xml = xml.replace('android:allowBackup="true"', 'android:allowBackup="true"\n        android:appCategory="game"');
 }
+// 게임은 완전 오프라인 → 인터넷 권한 제거 (불필요한 권한은 Play 프로텍트 경고 요인)
+xml = xml.replace(/\s*<uses-permission android:name="android.permission.INTERNET" \/>/, '');
 writeFileSync(mf, xml);
+
+// 1-1) build.gradle: 고정 서명 키 + 빌드마다 증가하는 versionCode
+//  → 서명이 매번 같아야 기존 앱 위에 '업데이트' 설치가 되고 저장 데이터가 유지된다
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const gradle = join(root, 'android', 'app', 'build.gradle');
+let gr = readFileSync(gradle, 'utf8');
+if (!gr.includes('signingConfigs')) {
+  gr = gr.replace(/versionCode \d+/, 'versionCode Integer.parseInt(System.getenv("BUILD_NUMBER") ?: "1")');
+  gr = gr.replace(/versionName "[^"]*"/, `versionName "${pkg.version}." + (System.getenv("BUILD_NUMBER") ?: "0")`);
+  gr = gr.replace('    buildTypes {', `    signingConfigs {
+        release {
+            storeFile file(System.getenv("DC_KEYSTORE_PATH") ?: "../../signing/demon-crusade.jks")
+            storePassword System.getenv("DC_KEYSTORE_PASS") ?: "demoncrusade"
+            keyAlias System.getenv("DC_KEY_ALIAS") ?: "demoncrusade"
+            keyPassword System.getenv("DC_KEY_PASS") ?: "demoncrusade"
+        }
+    }
+    buildTypes {`);
+  gr = gr.replace('            minifyEnabled false', '            minifyEnabled false\n            signingConfig signingConfigs.release');
+  writeFileSync(gradle, gr);
+}
 
 // 2) MainActivity 교체
 const javaDir = join(app, 'java', 'com', 'itx', 'demoncrusade');

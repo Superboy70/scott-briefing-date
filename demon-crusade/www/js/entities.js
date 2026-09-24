@@ -206,8 +206,28 @@ function updatePlayer(dt) {
   if (L.boss && !L.bossTriggered && P.x > (L.arenaStart + 4) * TILE) triggerBoss();
 }
 
+// 적이 바로 앞에 붙어 있으면 던지지 않고 무기로 직접 벤다 (근접 물리 공격)
+function meleeBox() { return { x: P.face > 0 ? P.x + P.w - 2 : P.x - 24, y: P.y - 4, w: 26, h: 30 }; }
+function tryMelee(wt) {
+  const box = meleeBox();
+  const targets = enemies.filter(e => !e.dead && !e.dormant && !e.phased && e.rise <= 0 && overlap(box, e));
+  if (!targets.length) return false;
+  P.atkCd = wt.cd / (1 + S.as / 100);
+  P.atkAnim = 0.18;
+  const type = S.wtype === 'orb' ? 'phys' : weaponDmgType(C.cls, S.wtype);
+  for (const e of targets) {
+    const r = rollWeaponDamage(1.25 / WEAPON_TYPES[S.wtype].mult);
+    hitEnemy(e, r.dmg, { crit: r.crit, type, knock: 90, leech: true });
+  }
+  breakObjects(box);
+  fx.push({ kind: 'slash', x: P.x + P.w / 2 + P.face * 14, y: P.y + 10, face: P.face, t: 0.15, max: 0.15, col: DMG_TYPES[type].color });
+  Audio8.play('smite');
+  return true;
+}
+
 function fireWeapon() {
   const wt = WEAPON_TYPES[S.wtype];
+  if (tryMelee(wt)) return;
   const mine = shots.filter(s => s.kind === 'weapon').length;
   if (mine >= wt.max * (1 + S.multi)) return;
   P.atkCd = wt.cd / (1 + S.as / 100);
@@ -243,7 +263,7 @@ function useSkill(i) {
       const box = { x: P.face > 0 ? P.x + P.w : P.x - 34, y: P.y - 6, w: 34, h: 32 };
       for (const e of enemies) if (!e.dead && overlap(box, e)) {
         const r = rollWeaponDamage(1.5 + lv * 0.25);
-        hitEnemy(e, r.dmg, { crit: r.crit, stun: 0.6, knock: 160, leech: true });
+        hitEnemy(e, r.dmg, { crit: r.crit, stun: 0.6, knock: 160, leech: true, type: 'holy' });
       }
       breakObjects(box);
       fx.push({ kind: 'arc', x: cx + P.face * 18, y: cy, face: P.face, t: 0.18, max: 0.18, col: '#ffe07a' });
@@ -319,13 +339,23 @@ function hitEnemy(e, dmg, o = {}) {
     Audio8.play('hit');
     return true;
   }
-  let d = dmg;
+  // 상성: 피해 속성 × 몬스터 계열
+  const type = o.type || 'phys';
+  const fam = ENEMY_FAMILY[e.type];
+  const m = matchup(type, fam);
+  const d = Math.max(1, Math.round(dmg * m));
   e.hp -= d; e.flash = 0.08;
-  addText(e.x + e.w / 2, e.y - 4, o.crit ? `${d}!` : `${d}`, o.crit ? '#ffdd55' : o.col || '#fff');
+  const col = o.crit ? '#ffdd55' : (type !== 'phys' ? DMG_TYPES[type].color : o.col || '#fff');
+  addText(e.x + e.w / 2, e.y - 4, o.crit ? `${d}!` : `${d}`, col);
+  if (m > 1 && (!e.weakShown || e.weakShown < gtime)) { addText(e.x + e.w / 2, e.y - 14, '약점!', '#ffdd55'); e.weakShown = gtime + 0.6; }
+  else if (m < 1 && (!e.weakShown || e.weakShown < gtime)) { addText(e.x + e.w / 2, e.y - 14, '저항', '#999'); e.weakShown = gtime + 0.6; }
   if (!o.noElem) {
-    if (S.cold > 0 || o.cold) { e.slow = 1.6; if (S.cold && !o.skipAdd) { e.hp -= S.cold; } }
-    if (S.fire > 0 && !o.skipAdd) { e.hp -= Math.round(S.fire * 0.5); e.burn = 2; e.burnDps = S.fire * 0.5; }
-    if (S.light > 0 && !o.skipAdd) chainLightning(e, S.light);
+    if (type === 'cold') e.slow = 1.6;
+    if (!o.skipAdd) {
+      if (S.cold > 0) { e.slow = 1.6; e.hp -= Math.round(S.cold * matchup('cold', fam)); }
+      if (S.fire > 0) { const f = S.fire * matchup('fire', fam); e.hp -= Math.round(f * 0.5); e.burn = 2; e.burnDps = f * 0.5; }
+      if (S.light > 0) chainLightning(e, Math.round(S.light * matchup('light', fam)));
+    }
   }
   if (o.stun && !e.def.boss) e.stun = o.stun;
   if (o.knock && !e.def.boss) { e.vx = Math.sign(e.x - P.x || 1) * o.knock; if (!e.def.fly) e.vy = -90; }
@@ -428,12 +458,12 @@ function dropLoot(e) {
   const x = e.x + e.w / 2, y = e.y + e.h / 2;
   const mf = S.mf;
   const ilvl = e.ml + (tier >= 2 ? 2 : 0);
-  const itemChance = [0.09, 0.3, 1, 1][tier];
+  const itemChance = [0.07, 0.25, 0.9, 1][tier];
   const n = tier === 3 ? irand(3, 5) : tier === 2 ? irand(1, 2) : 1;
-  const boost = [0, 0.4, 1.2, 2.2][tier];
+  const boost = [0, 0.25, 0.6, 1.2][tier];
   for (let i = 0; i < n; i++) {
     if (Math.random() < itemChance) {
-      const it = genItem(ilvl, { mf, boost, rarity: tier === 3 && i === 0 ? (Math.random() < 0.3 ? 'unique' : 'rare') : undefined });
+      const it = genItem(ilvl, { mf, boost, rarity: tier === 3 && i === 0 ? (Math.random() < 0.08 ? 'unique' : Math.random() < 0.45 ? 'rare' : 'magic') : undefined });
       spawnPickup('item', x, y, { item: it });
     }
   }
@@ -467,6 +497,7 @@ function collectPickup(pk) {
       break;
     }
     case 'item':
+      if (C.skipNormal && pk.item.rarity === 'normal') return;
       if (C.inv.length >= INV_SIZE) { if (!pk.warned) { toast('인벤토리가 가득 찼습니다'); pk.warned = true; } return; }
       C.inv.push(pk.item);
       toast(`<span class="c-${pk.item.rarity}">${pk.item.name}</span> 획득`);
@@ -498,7 +529,7 @@ function breakObjects(box) {
         banner2('저주! 오리로 변했다!', '#b48cff');
         Audio8.play('curse');
       } else {
-        spawnPickup('item', x, y, { item: genItem(L.mlvl + 1, { mf: S.mf, boost: 0.5 }) });
+        spawnPickup('item', x, y, { item: genItem(L.mlvl + 1, { mf: S.mf, boost: 0.2 }) });
         spawnPickup('gold', x, y, { amount: irand(L.mlvl * 3, L.mlvl * 8 + 10) });
         if (Math.random() < 0.2) spawnPickup('armor', x, y);
       }
@@ -568,9 +599,10 @@ function updateShots(dt) {
       if (s.life <= 0) break;
       if (e.dead || s.hit.has(e) || !overlap(box, e)) continue;
       let dmg, crit = false, cold = false;
-      if (s.kind === 'weapon') { const r = rollWeaponDamage(); dmg = r.dmg; crit = r.crit; }
-      else { dmg = s.dmg; cold = s.kind === 'shard'; }
-      const ok = hitEnemy(e, dmg, { crit, cold, leech: s.kind === 'weapon', proj: s, skipAdd: s.kind !== 'weapon', noElem: s.kind !== 'weapon' && !cold, col: s.kind === 'shard' ? '#9fd8ff' : s.kind === 'boneSpear' ? '#e8e8d0' : null });
+      let type = 'phys';
+      if (s.kind === 'weapon') { const r = rollWeaponDamage(); dmg = r.dmg; crit = r.crit; type = weaponDmgType(C.cls, s.wt); }
+      else { dmg = s.dmg; cold = s.kind === 'shard'; type = cold ? 'cold' : 'magic'; }
+      const ok = hitEnemy(e, dmg, { crit, type, leech: s.kind === 'weapon', proj: s, skipAdd: s.kind !== 'weapon', noElem: s.kind !== 'weapon' && !cold });
       if (!ok) continue;
       s.hit.add(e);
       if (s.kind === 'weapon' && s.wt === 'torch') {
@@ -601,7 +633,7 @@ function updateShots(dt) {
       f.tick -= dt;
       if (f.tick <= 0) {
         f.tick = 0.3;
-        for (const e of enemies) if (!e.dead && overlap(f, e)) hitEnemy(e, Math.max(1, Math.round(rollWeaponDamage(0.35).dmg)), { noElem: true, col: '#ff9040' });
+        for (const e of enemies) if (!e.dead && overlap(f, e)) hitEnemy(e, Math.max(1, Math.round(rollWeaponDamage(0.35).dmg)), { noElem: true, type: 'fire' });
       }
     }
   }
@@ -629,7 +661,7 @@ function updateMinions(dt) {
     m.atk -= dt;
     if (target && m.atk <= 0 && overlap({ x: m.x - 6, y: m.y, w: m.w + 12, h: m.h }, target)) {
       m.atk = 0.8;
-      hitEnemy(target, Math.round(rollWeaponDamage(0.5).dmg * (1 + m.lv * 0.1)) + m.lv * 2, { noElem: true, col: '#cfe8c0' });
+      hitEnemy(target, Math.round(rollWeaponDamage(0.5).dmg * (1 + m.lv * 0.1)) + m.lv * 2, { noElem: true, type: 'phys', col: '#cfe8c0' });
     }
     for (const e of enemies) {
       if (e.dead || e.dormant || e.phased || !overlap(m, e)) continue;
@@ -810,7 +842,7 @@ function triggerBoss() {
   bossRef = spawnEnemy(type, ax, y, {});
   // 입구 봉쇄
   for (let r = 0; r < 13; r++) L.t[r * L.cols + L.arenaStart - 1] = 1;
-  banner = { t: 3, title: d.name, sub: '보스 등장', boss: true };
+  banner = { t: 3.5, title: d.name, sub: `${FAMILIES[ENEMY_FAMILY[type]].name} — ${familyWeakText(ENEMY_FAMILY[type])}`, boss: true };
   Audio8.play('boss');
   Audio8.music('boss');
 }

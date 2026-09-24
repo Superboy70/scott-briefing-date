@@ -1,5 +1,6 @@
 'use strict';
 // ===== 공통 상수 / 유틸 =====
+const APP_VERSION = '1.1.0';
 const TILE = 16, VH = 270, ROWS = 17, GRAV = 900;
 const rand = (a, b) => a + Math.random() * (b - a);
 const irand = (a, b) => Math.floor(rand(a, b + 1));
@@ -22,6 +23,7 @@ const CLASSES = {
     base: { str: 25, dex: 20, vit: 25, ene: 15 },
     weapon: 'lance', affinity: ['lance', 'axe'],
     skills: ['smite', 'holyShield'],
+    matchup: '창·도끼 공격과 심판의 일격이 신성 피해 → 언데드·악마·영체에 강함',
     colors: { armor: '#c3cbd9', trim: '#d9a93e', cape: '#8a1e1e' },
   },
   sorc: {
@@ -30,6 +32,7 @@ const CLASSES = {
     base: { str: 10, dex: 25, vit: 15, ene: 35 },
     weapon: 'orb', affinity: ['orb', 'torch'],
     skills: ['frozenOrb', 'teleport'],
+    matchup: '마법구=마법(영체에 강함), 횃불=화염(야수에 강함), 서리 구체=냉기(악마에 강함)',
     colors: { armor: '#6b43a8', trim: '#e0c060', cape: '#2e2266' },
   },
   necro: {
@@ -38,6 +41,7 @@ const CLASSES = {
     base: { str: 15, dex: 25, vit: 20, ene: 25 },
     weapon: 'dagger', affinity: ['dagger', 'orb'],
     skills: ['raiseSkel', 'boneSpear'],
+    matchup: '단검=독(야수에 강함, 언데드엔 다소 약함), 뼈 창=마법(영체에 강함), 해골=물리',
     colors: { armor: '#4d5059', trim: '#9fe08f', cape: '#1c2a1c' },
   },
 };
@@ -165,3 +169,41 @@ function monsterLevel(stageIdx, diff) {
   return Math.round(1 + stageIdx * 2.2 + DIFFS[diff].lvl);
 }
 function expToNext(lvl) { return Math.floor(50 * Math.pow(lvl, 1.8)); }
+
+// ===== 상성 (피해 속성 × 몬스터 계열) =====
+const DMG_TYPES = {
+  phys:   { name: '물리', color: '#e8e8e8' },
+  holy:   { name: '신성', color: '#ffe07a' },
+  fire:   { name: '화염', color: '#ff8040' },
+  cold:   { name: '냉기', color: '#9fd8ff' },
+  light:  { name: '번개', color: '#ffff80' },
+  magic:  { name: '마법', color: '#c8a0ff' },
+  poison: { name: '독',   color: '#8fe070' },
+};
+const FAMILIES = {
+  undead: { name: '언데드', mult: { holy: 1.5, fire: 1.25, cold: 0.75, poison: 0.75 } },
+  beast:  { name: '야수',   mult: { fire: 1.5, cold: 1.25, poison: 1.5 } },
+  spirit: { name: '영체',   mult: { phys: 0.5, holy: 1.5, light: 1.25, magic: 1.5, poison: 0.5 } },
+  demon:  { name: '악마',   mult: { holy: 1.5, fire: 0.5, cold: 1.5 } },
+};
+const ENEMY_FAMILY = {
+  zombie: 'undead', skeleton: 'undead', archer: 'undead', graveLord: 'undead',
+  crow: 'beast', bat: 'beast', spider: 'beast', spiderling: 'beast', plant: 'beast', spiderQueen: 'beast',
+  ghost: 'spirit',
+  imp: 'demon', demon: 'demon', knight: 'demon', flameTyrant: 'demon', terrorLord: 'demon',
+};
+function matchup(type, family) { return (FAMILIES[family] && FAMILIES[family].mult[type]) || 1; }
+function familyWeakText(family) {
+  const m = FAMILIES[family].mult;
+  const weak = Object.keys(m).filter(k => m[k] > 1).map(k => DMG_TYPES[k].name);
+  const res = Object.keys(m).filter(k => m[k] < 1).map(k => DMG_TYPES[k].name);
+  return `약점: ${weak.join('·') || '없음'} / 저항: ${res.join('·') || '없음'}`;
+}
+// 직업별 기본 공격 속성: 주력 무기(affinity)를 들면 직업 고유 속성으로 바뀐다
+const CLASS_ELEMENT = { paladin: 'holy', sorc: 'magic', necro: 'poison' };
+function weaponDmgType(cls, wtype) {
+  if (wtype === 'torch') return 'fire';
+  if (wtype === 'orb') return 'magic';
+  if (CLASSES[cls].affinity.includes(wtype)) return CLASS_ELEMENT[cls];
+  return 'phys';
+}

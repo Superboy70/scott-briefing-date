@@ -374,6 +374,12 @@ function drawShots() {
         ctx.save(); ctx.translate(f.x - camX, f.y); ctx.scale(f.face, 1); ctx.beginPath(); ctx.arc(-10, 0, 20, -1.1, 1.1); ctx.stroke(); ctx.restore();
         ctx.globalAlpha = 1;
         break;
+      case 'slash':
+        ctx.save(); ctx.translate(f.x - camX, f.y); ctx.scale(f.face, 1);
+        ctx.strokeStyle = f.col; ctx.lineWidth = 2.5; ctx.globalAlpha = a;
+        ctx.beginPath(); ctx.arc(-6, 0, 14, -1.3 + (1 - a) * 0.8, 0.6 + (1 - a) * 0.8); ctx.stroke();
+        ctx.restore(); ctx.globalAlpha = 1;
+        break;
       case 'bolt': {
         ctx.strokeStyle = '#ffff90'; ctx.lineWidth = 2; ctx.globalAlpha = a;
         ctx.beginPath(); ctx.moveTo(f.x1 - camX, f.y1);

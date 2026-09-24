@@ -71,6 +71,7 @@ function goTitle() {
       <button data-act="settings">설정</button>
     </div>
     <p class="dim" style="margin-top:10px">갑옷이 부서지면 속옷 차림… 두 번 깨야 진짜 엔딩.</p>
+    <p class="dim" style="font-size:11px">v${APP_VERSION}</p>
   </div>`);
 }
 
@@ -82,6 +83,7 @@ function goClassSelect() {
       <p style="font-size:13px">${c.desc}</p>
       <p class="dim">힘 ${c.base.str} · 민첩 ${c.base.dex} · 활력 ${c.base.vit} · 에너지 ${c.base.ene}</p>
       <p class="dim">무기: ${WEAPON_TYPES[c.weapon].name} · 스킬: ${c.skills.map(s => SKILLS[s].name).join(', ')}</p>
+      <p style="font-size:12px;color:#ffe07a">상성: ${c.matchup}</p>
       <button class="primary" data-act="pickClass" data-arg="${k}">선택</button>
     </div>`).join('');
   show(`<div class="panel wide"><h2>직업 선택</h2><div class="row">${cards}</div>
@@ -103,7 +105,7 @@ function enterTown() {
 function refreshShop() {
   G.shopStock = [];
   for (let i = 0; i < 4; i++) {
-    const it = genItem(C.level + DIFFS[C.diff].lvl * 0.5, { rarity: Math.random() < 0.25 ? 'rare' : 'magic' });
+    const it = genItem(C.level + DIFFS[C.diff].lvl * 0.5, { rarity: Math.random() < 0.1 ? 'rare' : 'magic' });
     G.shopStock.push(it);
   }
 }
@@ -320,15 +322,41 @@ function renderSettings() {
     <div class="menu-list" style="max-width:300px;margin:0 auto">
       <button data-act="toggleMusic">배경음: ${Audio8.musicOn ? '켜짐' : '꺼짐'}</button>
       <button data-act="toggleSfx">효과음: ${Audio8.sfxOn ? '켜짐' : '꺼짐'}</button>
+      ${C ? `<button data-act="toggleSkipNormal">일반 등급 아이템 줍기: ${C.skipNormal ? '안 함' : '함'}</button>` : ''}
       <button data-act="fullscreen">전체 화면</button>
+      ${hasSave() ? '<button data-act="exportSave">세이브 백업 코드 복사</button>' : ''}
+      ${G.state === 'title' ? '<button data-act="importSave">세이브 코드로 복원</button>' : ''}
       ${G.state === 'title' && hasSave() ? '<button class="danger" data-act="wipe">저장 데이터 삭제</button>' : ''}
-    </div>${backBtn()}</div>`);
+    </div>
+    <p class="dim" style="font-size:12px">버전 ${APP_VERSION} · 앱을 삭제하면 저장 데이터도 지워집니다. 재설치 전에 백업 코드를 복사해 두세요.</p>
+    ${backBtn()}</div>`);
+}
+
+function matchupTable() {
+  const types = Object.keys(DMG_TYPES);
+  const head = types.map(t => `<td style="color:${DMG_TYPES[t].color}">${DMG_TYPES[t].name}</td>`).join('');
+  const rows = Object.entries(FAMILIES).map(([k, f]) => {
+    const monsters = Object.keys(ENEMY_FAMILY).filter(m => ENEMY_FAMILY[m] === k && !ENEMIES[m].boss && m !== 'spiderling').map(m => ENEMIES[m].name).join(', ');
+    return `<tr><td><b>${f.name}</b><div class="dim" style="font-size:10px">${monsters}</div></td>${types.map(t => {
+      const m = matchup(t, k);
+      return `<td style="color:${m > 1 ? '#7f7' : m < 1 ? '#f77' : '#888'}">${m === 1 ? '—' : '×' + m}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  return `<table class="stats" style="font-size:12px;text-align:center"><tr><td></td>${head}</tr>${rows}</table>`;
 }
 
 function renderHelp() {
   show(`<div class="panel wide"><h3>조작법</h3>
     <p>◀ ▶ 이동 · <b>점프</b> (길게 누르면 높이) · <b>공격</b> (누르고 있으면 연사) · <b>스킬1/2</b> · ♥/✦ 물약 · ☰ 메뉴</p>
     <p class="dim">키보드: ←→/AD 이동, Space/W 점프, J/Z 공격, K/X 스킬1, L/C 스킬2, Q/E 물약, Esc 메뉴</p>
+    <h3 style="margin-top:8px">공격 방식</h3>
+    <p>• <b>공격 버튼</b>: 적이 멀리 있으면 무기를 <b>던지고</b>, 바로 앞(한 칸 이내)에 붙어 있으면 무기로 <b>직접 벱니다</b>(근접 125% 피해, 투척 개수 제한 없음).</p>
+    <p>• 성기사: 공격 버튼 = 창 투척/베기(신성), 스킬1 심판의 일격 = 강력한 근접 강타(신성·기절)</p>
+    <p>• 소서리스: 마법구 투척(마법, 약한 유도) · 서리 구체(냉기) · 순간이동</p>
+    <p>• 네크로맨서: 단검 투척/베기(독) · 해골 소환(해골이 근접 물리 공격) · 뼈 창(마법, 전부 관통)</p>
+    <h3 style="margin-top:8px">상성표 (피해 배율)</h3>
+    <p class="dim" style="font-size:12px">직업의 주력 무기를 들면 공격 속성이 바뀝니다. 성기사 창·도끼 → 신성, 네크로맨서 단검 → 독, 횃불 → 화염, 마법구 → 마법, 나머지는 물리. 반지·목걸이의 화염/냉기/번개 추가 피해도 상성을 따릅니다.</p>
+    ${matchupTable()}
     <h3 style="margin-top:8px">게임 방법</h3>
     <p>• 무기를 던져 싸우는 횡스크롤 액션. 무기 종류(창·단검·도끼·횃불·마법구)마다 궤적이 다릅니다.</p>
     <p>• <b>갑옷 내구도</b>가 먼저 피해를 받고, 다 떨어지면 갑옷이 부서져 속옷 차림이 됩니다. 마을 대장장이에게 수리하세요.</p>
@@ -491,7 +519,7 @@ const ACTIONS = {
     if (C.gold < price) return;
     if (C.inv.length >= INV_SIZE) { toast('인벤토리가 가득 찼습니다'); return; }
     C.gold -= price;
-    const it = genItem(C.level + irand(0, 4) + DIFFS[C.diff].lvl * 0.3, { slot, boost: 0.7 });
+    const it = genItem(C.level + irand(0, 4) + DIFFS[C.diff].lvl * 0.3, { slot, boost: 0.3 });
     C.inv.push(it);
     G.gambleMsg = itemLines(it);
     Audio8.play(it.rarity === 'unique' ? 'unique' : it.rarity === 'rare' ? 'rare' : 'pickup');
@@ -554,6 +582,28 @@ const ACTIONS = {
     Audio8.play('click'); updateHudButtons(); renderSkills();
   },
   toggleMusic: () => { Audio8.setMusic(!Audio8.musicOn); saveSettings(); renderSettings(); },
+  toggleSkipNormal: () => { C.skipNormal = !C.skipNormal; saveGame(); renderSettings(); },
+  exportSave: () => {
+    saveGame();
+    let code = '';
+    try { code = btoa(unescape(encodeURIComponent(localStorage.getItem(SAVE_KEY) || ''))); } catch (e) { /* 무시 */ }
+    if (!code) return;
+    const done = () => toast('백업 코드를 복사했습니다. 메모장 등에 붙여넣어 보관하세요.');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, () => prompt('아래 코드를 길게 눌러 복사하세요', code));
+    else prompt('아래 코드를 길게 눌러 복사하세요', code);
+  },
+  importSave: () => {
+    const code = prompt('세이브 백업 코드를 붙여넣으세요');
+    if (!code) return;
+    try {
+      const json = decodeURIComponent(escape(atob(code.trim())));
+      const d = JSON.parse(json);
+      if (!d || !d.cls || !CLASSES[d.cls]) throw new Error('bad');
+      localStorage.setItem(SAVE_KEY, json);
+      toast('복원했습니다');
+      goTitle();
+    } catch (e) { toast('올바른 백업 코드가 아닙니다'); }
+  },
   toggleSfx: () => { Audio8.setSfx(!Audio8.sfxOn); saveSettings(); renderSettings(); },
   fullscreen: () => requestFullscreen(),
   wipe: () => { if (confirm('저장 데이터를 삭제할까요? 되돌릴 수 없습니다.')) { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ } goTitle(); } },

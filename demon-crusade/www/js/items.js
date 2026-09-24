@@ -160,8 +160,12 @@ function genItem(ilvl, opts = {}) {
   const slot = opts.slot || wpick({ weapon: 30, armor: 22, helm: 20, ring: 14, amulet: 10 });
   let rarity = opts.rarity;
   if (!rarity) {
-    const f = 1 + (opts.mf || 0) / 100 + (opts.boost || 0);
-    rarity = wpick({ normal: 60, magic: 28 * f, rare: 9 * f, unique: 1.6 * f });
+    // 디아블로2식 마법 아이템 발견 체감: 희귀·고유 등급일수록 효과가 줄어든다
+    const mf = opts.mf || 0, b = opts.boost || 0;
+    const fM = 1 + mf / 100 + b;
+    const fR = 1 + (mf * 600 / (mf + 600)) / 100 + b;
+    const fU = 1 + (mf * 250 / (mf + 250)) / 100 + b;
+    rarity = wpick({ normal: 72, magic: 23 * fM, rare: 4 * fR, unique: 0.5 * fU });
   }
   if ((slot === 'ring' || slot === 'amulet') && rarity === 'normal') rarity = 'magic';
 
