@@ -218,13 +218,64 @@ function itemIcon(item) {
   return SLOT_ICONS[item.slot];
 }
 
+// ===== 강화(+N) =====
+const ENH_MAX = 9;
+const ENH_RATE = [100, 90, 80, 70, 60, 50, 40, 30, 20];
+const effMin = it => Math.round(it.min * (1 + (it.plus || 0) * 0.08));
+const effMax = it => Math.round(it.max * (1 + (it.plus || 0) * 0.08));
+const effDef = it => Math.round((it.def || 0) * (1 + (it.plus || 0) * 0.1));
+const displayName = it => (it.plus ? `+${it.plus} ` : '') + it.name;
+
+// ===== 제작 재료 =====
+const MATS = {
+  iron:    { name: '철 조각',    icon: '⛓', color: '#b8b8c8' },
+  dust:    { name: '마력 가루',  icon: '✨', color: '#7b93ff' },
+  essence: { name: '희귀 정수',  icon: '💠', color: '#ffdd55' },
+  soul:    { name: '고유 영혼석', icon: '🔮', color: '#c9a567' },
+};
+function salvageYield(it) {
+  const y = { iron: 0, dust: 0, essence: 0, soul: 0 };
+  const big = it.ilvl >= 30 ? 1 : 0;
+  switch (it.rarity) {
+    case 'normal': y.iron = 1 + big + (Math.random() < 0.5 ? 1 : 0); break;
+    case 'magic': y.dust = 1 + big; y.iron = 1; break;
+    case 'rare': y.essence = 1; y.dust = 2 + big; break;
+    case 'unique': y.soul = 1; y.essence = 1; break;
+  }
+  y.iron += Math.floor((it.plus || 0) / 2);
+  return y;
+}
+function matsText(m) {
+  return Object.keys(MATS).filter(k => m[k]).map(k => `${MATS[k].icon}${MATS[k].name} ${m[k]}`).join(' · ');
+}
+
 function itemLines(item) {
   const lines = [];
-  lines.push(`<div class="iname c-${item.rarity}">${item.name}</div>`);
+  lines.push(`<div class="iname c-${item.rarity}">${displayName(item)}</div>`);
   if (item.rarity !== 'normal') lines.push(`<div class="c-${item.rarity}" style="font-size:12px">${item.base} · ${RARITY[item.rarity].name}</div>`);
-  if (item.slot === 'weapon') lines.push(`<div>${WEAPON_TYPES[item.type].name} · 피해 ${item.min}-${item.max}</div>`);
-  if (item.def) lines.push(`<div>갑옷 내구도 ${item.def}</div>`);
+  if (item.slot === 'weapon') {
+    const t = weaponDmgType(C ? C.cls : 'paladin', item.type);
+    lines.push(`<div>${WEAPON_TYPES[item.type].name} · 피해 ${effMin(item)}-${effMax(item)} <span style="color:${DMG_TYPES[t].color};font-size:12px">[${DMG_TYPES[t].name}]</span></div>`);
+  }
+  if (item.def) lines.push(`<div>갑옷 내구도 ${effDef(item)}</div>`);
+  if (item.plus) lines.push(`<div class="c-green" style="font-size:12px">강화 +${item.plus} (${item.slot === 'weapon' ? '피해 +' + item.plus * 8 : '내구도 +' + item.plus * 10}%)</div>`);
   lines.push(`<div class="dim">요구 레벨 ${item.req} · 아이템 레벨 ${item.ilvl}</div>`);
   for (const k of AFF_ORDER) if (item.aff[k]) lines.push(`<div class="aff">${AFFIXES[k].label(item.aff[k])}</div>`);
   return lines.join('');
+}
+
+// 장착 중인 아이템과 비교 (▲ 좋아짐 / ▼ 나빠짐)
+function compareLines(it, cur) {
+  const out = [];
+  const fmt = (label, d, unit = '') => out.push(`<div style="color:${d > 0 ? '#7f7' : '#f77'}">${d > 0 ? '▲' : '▼'} ${label} ${d > 0 ? '+' : ''}${Math.round(d)}${unit}</div>`);
+  if (it.slot === 'weapon') {
+    const a = (effMin(it) + effMax(it)) / 2, b = cur ? (effMin(cur) + effMax(cur)) / 2 : 0;
+    if (a !== b) fmt('평균 무기 피해', a - b);
+  }
+  if (it.def || (cur && cur.def)) { const d = effDef(it) - (cur ? effDef(cur) : 0); if (d) fmt('갑옷 내구도', d); }
+  for (const k of AFF_ORDER) {
+    const d = (it.aff[k] || 0) - ((cur && cur.aff[k]) || 0);
+    if (d) out.push(`<div style="color:${d > 0 ? '#7f7' : '#f77'}">${d > 0 ? '▲' : '▼'} ${AFFIXES[k].label(Math.abs(d))}${d > 0 ? '' : ' 손실'}</div>`);
+  }
+  return out.length ? out.join('') : '<div class="dim">차이 없음</div>';
 }

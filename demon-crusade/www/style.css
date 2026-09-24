@@ -270,3 +270,77 @@ table.stats td:last-child { text-align: right; }
   .panel { padding: 10px 12px; }
   button, .b { padding: 7px 12px; font-size: 14px; }
 }
+
+/* ---------- v1.2 UI: 탭 프레임 ---------- */
+.panel {
+  background: linear-gradient(180deg, rgba(28, 20, 13, 0.97), rgba(12, 9, 6, 0.97));
+}
+.panel.frame {
+  width: min(960px, 100%);
+  height: 100%;
+  display: flex; flex-direction: column;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+.frame .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 2px 4px; touch-action: pan-y; }
+.frame h3 { margin: 2px 0 6px; }
+.topbar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  font-size: 13px; padding: 2px 4px 6px; border-bottom: 1px solid #3d311f;
+}
+.topbar .mats { display: flex; gap: 8px; font-size: 12px; }
+.navbar {
+  display: flex; gap: 3px; overflow-x: auto; padding: 6px 0; border-bottom: 1px solid #3d311f;
+  scrollbar-width: none; touch-action: pan-x;
+}
+.navbar::-webkit-scrollbar { display: none; }
+.navbar button {
+  position: relative; flex: 0 0 auto; margin: 0; min-width: 56px; padding: 4px 8px; min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; line-height: 1.1;
+}
+.navbar button .ic { font-size: 17px; }
+.navbar button.on { border-color: var(--gold); background: #4a3820; color: #ffe3a3; box-shadow: inset 0 -2px 0 var(--gold); }
+.dot { position: absolute; top: 3px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--rare); box-shadow: 0 0 6px var(--rare); }
+
+.npcs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.npc {
+  display: flex; gap: 10px; align-items: center; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+  background: linear-gradient(135deg, rgba(74, 56, 32, .45), rgba(0, 0, 0, .35));
+}
+.npc:active { border-color: var(--gold); }
+.npc.hot { border-color: var(--gold); box-shadow: 0 0 12px rgba(199, 161, 90, .25); }
+.npc .ic { font-size: 30px; width: 40px; text-align: center; }
+.npc .dim { font-size: 12px; }
+.npc .info { font-size: 12px; margin-top: 2px; }
+@media (max-width: 640px) { .npcs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.card { border: 1px solid #3d311f; border-radius: 5px; padding: 8px 10px; background: rgba(0, 0, 0, .35); margin-bottom: 6px; font-size: 13px; }
+.cmpbox { font-size: 12px; min-width: 150px; }
+.cmp { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3d311f; font-size: 12px; }
+.acts { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.acts button { margin: 0; }
+.cell .plus { position: absolute; top: 1px; right: 3px; font-size: 10px; font-weight: bold; color: #7f7; text-shadow: 0 0 2px #000; }
+.cell.empty { opacity: .6; }
+.cell.off { opacity: .25; }
+.cell.r-magic { background: rgba(60, 80, 180, .18); }
+.cell.r-rare { background: rgba(180, 150, 40, .18); }
+.cell.r-unique { background: rgba(160, 120, 60, .28); }
+.recipes { margin-top: 6px; }
+.recipe { display: flex; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid #2c2316; padding: 6px 0; font-size: 12px; }
+.recipe.na { opacity: .5; }
+.skicon { font-size: 26px; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; background: rgba(54, 87, 201, .2); }
+.xpbar { position: relative; height: 16px; background: #1a1410; border: 1px solid #3d311f; border-radius: 3px; overflow: hidden; margin: 4px 0; }
+.xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #8a6a20, #c8a040); }
+.xpbar span { position: relative; font-size: 11px; padding-left: 6px; }
+
+/* 스킬 버튼 재사용 대기 표시 */
+#btn-s1, #btn-s2 { --cd: 0; overflow: hidden; }
+#btn-s1::after, #btn-s2::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(0, 0, 0, .6) calc(var(--cd) * 360deg), transparent 0);
+}
+
+.portraits { display: flex; gap: 4px; align-items: flex-end; justify-content: center; background: radial-gradient(rgba(199,161,90,.18), transparent 70%); border-radius: 6px; }
+.portraits img { width: 96px; height: 96px; image-rendering: pixelated; }
+.portraits img.bare { width: 64px; height: 64px; opacity: .8; }

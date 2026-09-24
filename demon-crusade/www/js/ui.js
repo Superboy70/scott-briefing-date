@@ -18,7 +18,7 @@ function loadGame() {
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || !d.cls || !CLASSES[d.cls]) return null;
-    return d;
+    return ensureCharData(d);
   } catch (e) { return null; }
 }
 function hasSave() { return !!loadGame(); }
@@ -79,6 +79,7 @@ function goClassSelect() {
   G.state = 'class';
   const cards = Object.entries(CLASSES).map(([k, c]) => `
     <div class="class-card">
+      <div class="portraits"><img src="${heroPortrait(k)}" alt=""><img class="bare" src="${heroPortrait(k, true)}" alt=""></div>
       <h3>${c.name} <span class="dim">${c.eng}</span></h3>
       <p style="font-size:13px">${c.desc}</p>
       <p class="dim">힘 ${c.base.str} · 민첩 ${c.base.dex} · 활력 ${c.base.vit} · 에너지 ${c.base.ene}</p>
@@ -114,43 +115,68 @@ const potionPrice = () => 20 + C.level * 3;
 const repairCost = () => Math.ceil((S.armorMax - (C.armorCur ?? 0)) * 0.5 * (1 + C.diff));
 const gamblePrice = () => (120 + C.level * 30) * (1 + C.diff);
 
+// ---------- 마을 공통 프레임 ----------
+const TOWN_TABS = [
+  ['main', '🏕', '야영지'], ['wp', '⛩', '출발'], ['shop', '🧪', '상점'], ['smith', '⚒', '대장간'],
+  ['craft', '⚗', '제작'], ['gamble', '🎲', '도박'], ['stash', '📦', '창고'], ['inv', '🎒', '가방'],
+  ['char', '📜', '능력치'], ['skill', '✦', '스킬'], ['settings', '⚙', '설정'],
+];
+const PAUSE_TABS = [['main', '⏸', '메뉴'], ['inv', '🎒', '가방'], ['char', '📜', '능력치'], ['skill', '✦', '스킬'], ['settings', '⚙', '설정']];
+
+function matsBar() {
+  return Object.keys(MATS).map(k => `<span title="${MATS[k].name}" style="color:${MATS[k].color}">${MATS[k].icon}${C.mats[k]}</span>`).join(' ');
+}
 function townHeader() {
-  return `<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-    <h2 style="margin:0">로그 야영지</h2>
-    <div class="dim">${CLASSES[C.cls].name} Lv${C.level} · <span style="color:#ffd24a">${C.gold} G</span> · 난이도 <span style="color:${DIFFS[C.diff].color}">${DIFFS[C.diff].name}</span></div>
+  return `<div class="topbar">
+    <b>${CLASSES[C.cls].name} Lv${C.level}</b>
+    <span style="color:#ffd24a">${C.gold} G</span>
+    <span class="mats">${matsBar()}</span>
+    <span style="color:${DIFFS[C.diff].color}">${DIFFS[C.diff].name}</span>
   </div>`;
 }
+function navBar() {
+  const tabs = G.state === 'pause' ? PAUSE_TABS : TOWN_TABS;
+  const dot = k => (k === 'char' && C.statPts) || (k === 'skill' && C.skillPts) ? '<i class="dot"></i>' : '';
+  return `<div class="navbar">${tabs.map(([k, ic, name]) =>
+    `<button class="${G.view === k ? 'on' : ''}" data-act="view" data-arg="${k}"><span class="ic">${ic}</span><span>${name}</span>${dot(k)}</button>`).join('')}
+    ${G.state === 'pause' ? '<button class="primary" data-act="resume"><span class="ic">▶</span><span>계속</span></button>' : ''}</div>`;
+}
+function uiFrame(title, body, extraCls = '') {
+  const inGame = G.state === 'town' || G.state === 'pause';
+  if (!inGame) return show(`<div class="panel wide ${extraCls}"><h3>${title}</h3>${body}${backBtn()}</div>`);
+  show(`<div class="panel wide frame ${extraCls}">${townHeader()}${navBar()}
+    <div class="content">${title ? `<h3>${title}</h3>` : ''}${body}</div></div>`);
+}
+function backBtn() { return `<button data-act="back">← 뒤로</button>`; }
 
 function renderTown() {
   if (G.view !== 'main') return renderSub();
-  const alert = (C.statPts || C.skillPts) ? ` <span class="c-rare">●</span>` : '';
-  show(`<div class="panel wide">${townHeader()}
-    <div class="row">
-      <div class="menu-list grow">
-        <button class="primary" data-act="view" data-arg="wp">⛩ 웨이포인트 (출발)</button>
-        <button data-act="view" data-arg="shop">⚗ 상인 엘라 — 물약 · 판매 · 구매</button>
-        <button data-act="view" data-arg="smith">⚒ 대장장이 — 갑옷 수리 (${repairCost()} G)</button>
-        <button data-act="view" data-arg="gamble">🎲 도박꾼 기드 — 미확인 아이템</button>
-      </div>
-      <div class="menu-list grow">
-        <button data-act="view" data-arg="inv">🎒 인벤토리 · 장비</button>
-        <button data-act="view" data-arg="char">📜 캐릭터 능력치${C.statPts ? alert : ''}</button>
-        <button data-act="view" data-arg="skill">✦ 스킬${C.skillPts ? alert : ''}</button>
-        <button data-act="saveQuit">💾 저장 후 타이틀로</button>
-      </div>
-    </div>
-    <p class="dim">갑옷 ${Math.ceil(C.armorCur ?? 0)}/${S.armorMax} · 생명력 물약 ${C.hpPot} · 마나 물약 ${C.mpPot} · 처치 ${C.kills}</p>
+  const npc = (v, ic, name, role, info, cls = '') => `<div class="npc ${cls}" data-act="view" data-arg="${v}">
+    <div class="ic">${ic}</div><div><b>${name}</b><div class="dim">${role}</div>${info ? `<div class="info">${info}</div>` : ''}</div></div>`;
+  const need = (C.armorCur ?? 0) < S.armorMax;
+  uiFrame('', `<div class="npcs">
+    ${npc('wp', '⛩', '웨이포인트', '지역 선택 · 출발', `진행: ${stageInfo(Math.max(0, C.progress[C.diff])).name}`, 'hot')}
+    ${npc('shop', '🧪', '상인 엘라', '물약 · 장비 구매/판매', `물약 ♥${C.hpPot} ✦${C.mpPot}`)}
+    ${npc('smith', '⚒', '대장장이 찰스', '갑옷 수리 · 장비 강화', need ? `<span class="c-red">수리 필요 ${repairCost()}G</span>` : '갑옷 상태 양호')}
+    ${npc('craft', '⚗', '호라드릭 제단', '분해 · 재조정 · 승급 · 고유 제작', matsBar())}
+    ${npc('gamble', '🎲', '도박꾼 기드', '미확인 아이템 도박', `${gamblePrice()}G / 회`)}
+    ${npc('stash', '📦', '개인 창고', '아이템 보관', `${C.stash.length}/${STASH_SIZE}`)}
+  </div>
+  <div class="row" style="margin-top:8px;justify-content:space-between;align-items:center">
+    <span class="dim">갑옷 ${Math.ceil(C.armorCur ?? 0)}/${S.armorMax} · 처치 ${C.kills} · 사망 ${C.deaths}</span>
+    <button class="mini" data-act="saveQuit">💾 저장 후 타이틀로</button>
   </div>`);
 }
 
-function backBtn() { return `<button data-act="back">← 뒤로</button>`; }
-
 function renderSub() {
   switch (G.view) {
+    case 'main': return G.state === 'pause' ? renderPause() : G.state === 'town' ? renderTown() : goTitle();
     case 'wp': return renderWaypoint();
     case 'shop': return renderShop();
     case 'smith': return renderSmith();
+    case 'craft': return renderCraft();
     case 'gamble': return renderGamble();
+    case 'stash': return renderStash();
     case 'inv': return renderInventory();
     case 'char': return renderChar();
     case 'skill': return renderSkills();
@@ -171,110 +197,189 @@ function renderWaypoint() {
       const open = idx <= C.progress[C.diff];
       const ml = monsterLevel(idx, C.diff);
       const cp = C.checkpoint && C.checkpoint.stage === idx && C.checkpoint.diff === C.diff ? ' ⚑' : '';
+      const fam = s === 2 ? FAMILIES[ENEMY_FAMILY[ACTS[a].boss]].name : '';
       html += open
-        ? `<button data-act="go" data-arg="${idx}">${s === 2 ? '☠ ' : ''}${ACTS[a].stages[s]}${cp}<br><span class="dim">몬스터 Lv ${ml}</span></button>`
+        ? `<button data-act="go" data-arg="${idx}">${s === 2 ? '☠ ' : ''}${ACTS[a].stages[s]}${cp}<br><span class="dim">몬스터 Lv ${ml}${fam ? ' · 보스 ' + fam : ''}</span></button>`
         : `<button disabled>🔒 ???</button>`;
     }
   }
-  show(`<div class="panel wide">${townHeader()}<h3>웨이포인트</h3>
-    <div class="tabs">${tabs}</div>
-    <div class="wp">${html}</div>
-    <div style="margin-top:8px">${backBtn()}</div></div>`);
+  uiFrame('웨이포인트', `<div class="tabs">${tabs}</div><div class="wp">${html}</div>`);
 }
 
 function renderShop() {
   const pp = potionPrice();
   const stock = G.shopStock.map((it, i) => `
-    <div class="skill"><div class="row" style="align-items:center">
+    <div class="card"><div class="row" style="align-items:flex-start">
       <div class="grow">${itemLines(it)}</div>
+      <div class="grow cmpbox"><div class="dim">착용 장비 대비</div>${compareLines(it, C.equip[it.slot])}</div>
       <button data-act="buyItem" data-arg="${i}" ${C.gold < it.value * 4 ? 'disabled' : ''}>${it.value * 4} G</button>
     </div></div>`).join('') || '<p class="dim">오늘은 물건이 다 팔렸습니다.</p>';
-  show(`<div class="panel wide">${townHeader()}<h3>상인 엘라</h3>
+  uiFrame('상인 엘라', `
     <div class="row">
       <button data-act="buyPot" data-arg="hp" ${C.gold < pp || C.hpPot >= 10 ? 'disabled' : ''}>♥ 생명력 물약 ${pp} G (${C.hpPot}/10)</button>
       <button data-act="buyPot" data-arg="mp" ${C.gold < pp || C.mpPot >= 10 ? 'disabled' : ''}>✦ 마나 물약 ${pp} G (${C.mpPot}/10)</button>
-      <button data-act="view" data-arg="inv">아이템 판매 (인벤토리)</button>
+      <button data-act="view" data-arg="inv">아이템 판매 → 가방</button>
     </div>
-    <h3 style="margin-top:8px">진열 상품</h3>${stock}
-    ${backBtn()}</div>`);
+    <h3 style="margin-top:8px">진열 상품</h3>${stock}`);
+}
+
+// ---------- 아이템 셀 / 선택 ----------
+function cellHtml(it, src, key) {
+  if (!it) return `<div class="cell empty"></div>`;
+  const sel = G.sel && G.sel.src === src && String(G.sel.key) === String(key) ? ' sel' : '';
+  const cant = it.req > C.level ? ' cant' : '';
+  return `<div class="cell r-${it.rarity}${sel}${cant}" data-act="sel" data-arg="${src}:${key}">${itemIcon(it)}${it.plus ? `<span class="plus">+${it.plus}</span>` : ''}</div>`;
+}
+function gridHtml(list, size, src, filter) {
+  const cells = [];
+  for (let i = 0; i < size; i++) {
+    const it = list[i];
+    cells.push(it && filter && !filter(it) ? `<div class="cell off">${itemIcon(it)}</div>` : cellHtml(it, src, i));
+  }
+  return `<div class="grid">${cells.join('')}</div>`;
+}
+function slotCell(slot) {
+  const it = C.equip[slot];
+  if (!it) return `<div class="cell empty"><span class="dim">${SLOT_ICONS[slot]}</span><span class="slotname">${SLOT_NAMES[slot]}</span></div>`;
+  return cellHtml(it, 'eq', slot).replace('</div>', `<span class="slotname">${SLOT_NAMES[slot]}</span></div>`);
+}
+function selItem() {
+  if (!G.sel) return null;
+  if (G.sel.src === 'inv') return C.inv[G.sel.key] || null;
+  if (G.sel.src === 'stash') return C.stash[G.sel.key] || null;
+  if (G.sel.src === 'eq') return C.equip[G.sel.key] || null;
+  return null;
+}
+function cmpBlock(it) {
+  if (G.sel && G.sel.src === 'eq') return '';
+  const cur = C.equip[it.slot];
+  return `<div class="cmp"><div class="dim">착용 중: ${cur ? `<span class="c-${cur.rarity}">${displayName(cur)}</span>` : '없음'}</div>${compareLines(it, cur)}</div>`;
+}
+
+function renderInventory() {
+  const inTown = G.state === 'town';
+  const it = selItem();
+  let detail = '<span class="dim">아이템을 누르면 정보와 착용 장비 대비 변화가 표시됩니다.</span>';
+  if (it) {
+    detail = itemLines(it) + cmpBlock(it);
+    if (G.sel.src === 'inv') {
+      detail += `<div class="acts">
+        <button class="primary mini" data-act="equip" ${it.req > C.level ? 'disabled' : ''}>장착</button>
+        ${inTown ? `<button class="mini" data-act="sell">판매 ${it.value} G</button>` : ''}
+        <button class="danger mini" data-act="drop">버리기</button></div>`;
+      if (it.req > C.level) detail += `<div class="c-red" style="font-size:12px">레벨이 부족합니다</div>`;
+    } else if (G.sel.src === 'eq') {
+      detail += `<div class="acts"><button class="mini" data-act="unequip" ${it.slot === 'weapon' ? 'disabled' : ''}>해제</button></div>`;
+    }
+  }
+  uiFrame(`가방 (${C.inv.length}/${INV_SIZE})`, `
+    <div class="row">
+      <div class="grow" style="min-width:260px">
+        <div class="slots">${SLOTS.map(slotCell).join('')}</div>
+        ${gridHtml(C.inv, INV_SIZE, 'inv')}
+        <div class="acts"><button class="mini" data-act="sortInv">정렬</button>
+        ${inTown ? '<button class="mini" data-act="sellAllNormal">일반 등급 모두 판매</button>' : ''}</div>
+      </div>
+      <div class="detail grow" style="min-width:220px">${detail}</div>
+    </div>`);
+}
+
+function renderStash() {
+  const it = selItem();
+  let detail = '<span class="dim">가방 또는 창고의 아이템을 눌러 옮기세요. 창고는 모든 캐릭터 진행 중 유지됩니다.</span>';
+  if (it) {
+    detail = itemLines(it) + cmpBlock(it);
+    if (G.sel.src === 'inv') detail += `<div class="acts"><button class="primary mini" data-act="toStash" ${C.stash.length >= STASH_SIZE ? 'disabled' : ''}>창고에 넣기 ⬇</button></div>`;
+    if (G.sel.src === 'stash') detail += `<div class="acts"><button class="primary mini" data-act="toInv" ${C.inv.length >= INV_SIZE ? 'disabled' : ''}>가방으로 ⬆</button></div>`;
+  }
+  uiFrame('개인 창고', `
+    <div class="row">
+      <div class="grow" style="min-width:260px">
+        <div class="dim">가방 ${C.inv.length}/${INV_SIZE}</div>${gridHtml(C.inv, INV_SIZE, 'inv')}
+        <div class="dim" style="margin-top:6px">창고 ${C.stash.length}/${STASH_SIZE}</div>${gridHtml(C.stash, STASH_SIZE, 'stash')}
+        <div class="acts"><button class="mini" data-act="stashAll">가방 전부 보관 (장착 제외)</button><button class="mini" data-act="sortStash">창고 정렬</button></div>
+      </div>
+      <div class="detail grow" style="min-width:220px">${detail}</div>
+    </div>`);
 }
 
 function renderSmith() {
   const cost = repairCost();
   const need = (C.armorCur ?? 0) < S.armorMax;
-  show(`<div class="panel center">${townHeader()}<h3>대장장이 찰스</h3>
-    <p>"갑옷이 박살 났구먼. 속옷 차림으로 마계를 다닐 셈인가?"</p>
-    <p>갑옷 내구도: <b>${Math.ceil(C.armorCur ?? 0)} / ${S.armorMax}</b></p>
-    <button class="primary" data-act="repair" ${!need || C.gold < cost ? 'disabled' : ''}>수리하기 (${cost} G)</button>
-    ${backBtn()}</div>`);
+  const it = selItem();
+  let detail = '<span class="dim">강화할 무기·갑옷·투구를 고르세요. 강화 1단계마다 무기 피해 +8%, 방어구 내구도 +10%. 실패해도 아이템은 부서지지 않습니다(재료만 소모).</span>';
+  if (it) {
+    detail = itemLines(it);
+    if (canEnhance(it)) {
+      const e = enhanceCost(it);
+      detail += `<div class="card" style="margin-top:6px">+${it.plus || 0} → <b class="c-green">+${(it.plus || 0) + 1}</b> · 성공률 <b>${e.rate}%</b><br>비용: ${costText(e.cost, e.gold)}
+        <div class="acts"><button class="primary" data-act="enhance" ${hasMats(e.cost) && C.gold >= e.gold ? '' : 'disabled'}>강화하기</button></div></div>`;
+    } else detail += `<div class="dim" style="margin-top:6px">${(it.plus || 0) >= ENH_MAX ? '최대 강화 단계입니다.' : '반지·목걸이는 강화할 수 없습니다.'}</div>`;
+    if (G.smithMsg) detail += `<div style="margin-top:6px">${G.smithMsg}</div>`;
+  }
+  const enh = x => x.slot === 'weapon' || x.slot === 'armor' || x.slot === 'helm';
+  uiFrame('대장장이 찰스', `
+    <div class="card"><div class="row" style="align-items:center;justify-content:space-between">
+      <span>"갑옷이 박살 났구먼. 속옷 차림으로 마계를 다닐 셈인가?" — 갑옷 <b>${Math.ceil(C.armorCur ?? 0)} / ${S.armorMax}</b></span>
+      <button class="primary" data-act="repair" ${!need || C.gold < cost ? 'disabled' : ''}>수리 (${cost} G)</button>
+    </div></div>
+    <div class="row" style="margin-top:6px">
+      <div class="grow" style="min-width:260px">
+        <div class="dim">착용 장비</div><div class="slots">${SLOTS.map(slotCell).join('')}</div>
+        <div class="dim">가방</div>${gridHtml(C.inv, INV_SIZE, 'inv', enh)}
+      </div>
+      <div class="detail grow" style="min-width:220px">${detail}</div>
+    </div>`);
+}
+
+function renderCraft() {
+  const it = G.sel && G.sel.src === 'inv' ? selItem() : null;
+  let detail = '<span class="dim">가방에서 아이템을 고르면 가능한 제작법이 표시됩니다. 쓰지 않는 아이템은 분해해서 재료로 만드세요.</span>';
+  if (it) {
+    const y = salvageYield(it);
+    detail = itemLines(it) + `<div class="recipes">
+      <div class="recipe"><div><b>♻ 분해</b><div class="dim">아이템을 재료로 바꿉니다 (예상: ${matsText(y) || '없음'})</div></div>
+        <button class="danger mini" data-act="salvage">분해</button></div>
+      ${RECIPES.map(r => {
+        const ok = r.can(it);
+        const cost = r.cost(it), gold = r.gold(it);
+        return `<div class="recipe ${ok ? '' : 'na'}"><div><b>${r.icon} ${r.name}</b><div class="dim">${r.desc}</div><div>${ok ? costText(cost, gold) : '<span class="dim">대상 아님</span>'}</div></div>
+          <button class="primary mini" data-act="recipe" data-arg="${r.id}" ${ok && hasMats(cost) && C.gold >= gold ? '' : 'disabled'}>제작</button></div>`;
+      }).join('')}</div>`;
+  }
+  if (G.craftMsg) detail += `<div class="card" style="margin-top:6px">${G.craftMsg}</div>`;
+  const uc = uniqueCraftCost(), ug = uniqueCraftGold();
+  const canU = hasMats(uc) && C.gold >= ug && C.inv.length < INV_SIZE;
+  uiFrame('호라드릭 제단', `
+    <div class="card">재료: ${matsBar()} <span class="dim">· 분해·보스·정예 몬스터·보물상자에서 획득</span></div>
+    <div class="row" style="margin-top:6px">
+      <div class="grow" style="min-width:260px">
+        <div class="dim">가방</div>${gridHtml(C.inv, INV_SIZE, 'inv')}
+        <div class="card" style="margin-top:6px"><b>🔮 고유 아이템 제작</b> <span class="dim">부위를 고르면 고유 아이템을 만듭니다 (레벨에 맞는 고유가 없으면 희귀).</span><br>
+          비용: ${costText(uc, ug)}
+          <div class="acts">${SLOTS.map(s => `<button class="mini" data-act="craftUnique" data-arg="${s}" ${canU ? '' : 'disabled'}>${SLOT_ICONS[s]} ${SLOT_NAMES[s]}</button>`).join('')}</div></div>
+      </div>
+      <div class="detail grow" style="min-width:220px">${detail}</div>
+    </div>`);
 }
 
 function renderGamble() {
   const price = gamblePrice();
   const btns = SLOTS.map(s => `<button data-act="gamble" data-arg="${s}" ${C.gold < price ? 'disabled' : ''}>${SLOT_ICONS[s]} ${SLOT_NAMES[s]}</button>`).join('');
-  show(`<div class="panel center">${townHeader()}<h3>도박꾼 기드</h3>
+  uiFrame('도박꾼 기드', `
     <p>"뭐가 나올지는 나도 몰라. 운을 시험해 보겠나?" — 한 번에 <b style="color:#ffd24a">${price} G</b></p>
-    <div class="row" style="justify-content:center">${btns}</div>
-    <div class="detail" style="margin-top:8px;text-align:left">${G.gambleMsg || '<span class="dim">결과가 여기에 표시됩니다.</span>'}</div>
-    ${backBtn()}</div>`);
-}
-
-function slotCell(slot) {
-  const it = C.equip[slot];
-  const sel = G.sel && G.sel.src === 'eq' && G.sel.slot === slot ? ' sel' : '';
-  return `<div class="cell ${it ? 'r-' + it.rarity : ''}${sel}" data-act="selEq" data-arg="${slot}">${it ? itemIcon(it) : '<span class="dim">' + SLOT_ICONS[slot] + '</span>'}<span class="slotname">${SLOT_NAMES[slot]}</span></div>`;
-}
-
-function renderInventory() {
-  const cells = [];
-  for (let i = 0; i < INV_SIZE; i++) {
-    const it = C.inv[i];
-    const sel = G.sel && G.sel.src === 'inv' && G.sel.idx === i ? ' sel' : '';
-    const cant = it && it.req > C.level ? ' cant' : '';
-    cells.push(it
-      ? `<div class="cell r-${it.rarity}${sel}${cant}" data-act="selInv" data-arg="${i}">${itemIcon(it)}</div>`
-      : `<div class="cell"></div>`);
-  }
-  let detail = '<span class="dim">아이템을 눌러 정보를 확인하세요.</span>';
-  const inTown = G.state === 'town';
-  if (G.sel) {
-    const it = G.sel.src === 'inv' ? C.inv[G.sel.idx] : C.equip[G.sel.slot];
-    if (it) {
-      detail = itemLines(it);
-      if (G.sel.src === 'inv') {
-        const cur = C.equip[it.slot];
-        if (cur) detail += `<div class="cmp">현재 장착: <span class="c-${cur.rarity}">${cur.name}</span>${cur.min ? ` (피해 ${cur.min}-${cur.max})` : cur.def ? ` (갑옷 ${cur.def})` : ''}</div>`;
-        detail += `<div style="margin-top:6px">
-          <button class="primary mini" data-act="equip" ${it.req > C.level ? 'disabled' : ''}>장착</button>
-          ${inTown ? `<button class="mini" data-act="sell">판매 ${it.value} G</button>` : ''}
-          <button class="danger mini" data-act="drop">버리기</button></div>`;
-        if (it.req > C.level) detail += `<div class="c-red" style="font-size:12px">레벨이 부족합니다</div>`;
-      } else {
-        detail += `<div style="margin-top:6px"><button class="mini" data-act="unequip" ${it.slot === 'weapon' ? 'disabled' : ''}>해제</button></div>`;
-      }
-    }
-  }
-  show(`<div class="panel wide">
-    <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">장비 · 인벤토리 (${C.inv.length}/${INV_SIZE})</h3>
-    <span class="dim"><span style="color:#ffd24a">${C.gold} G</span></span></div>
-    <div class="row" style="margin-top:6px">
-      <div class="grow" style="min-width:260px">
-        <div class="slots">${SLOTS.map(slotCell).join('')}</div>
-        <div class="grid">${cells.join('')}</div>
-      </div>
-      <div class="detail grow" style="min-width:220px">${detail}</div>
-    </div>
-    <div style="margin-top:6px">${backBtn()}${inTown ? '<button class="mini" data-act="sellAllNormal">일반 등급 모두 판매</button>' : ''}</div></div>`);
+    <div class="row">${btns}</div>
+    <div class="detail" style="margin-top:8px">${G.gambleMsg || '<span class="dim">결과가 여기에 표시됩니다.</span>'}</div>`);
 }
 
 function renderChar() {
   calcStats();
-  const row = (k, name, eff) => `<tr><td>${name}</td><td><b>${S[k]}</b> <span class="dim">(${C.stats[k]})</span> ${C.statPts ? `<button class="mini" data-act="stat" data-arg="${k}">+</button>` : ''}<div class="dim" style="font-size:11px">${eff}</div></td></tr>`;
+  const row = (k, name, eff) => `<tr><td>${name}<div class="dim" style="font-size:11px">${eff}</div></td><td><b>${S[k]}</b> <span class="dim">(${C.stats[k]})</span> ${C.statPts ? `<button class="mini" data-act="stat" data-arg="${k}">+</button>` : ''}</td></tr>`;
   const wt = WEAPON_TYPES[S.wtype];
-  show(`<div class="panel wide"><div class="row">
+  const wtype = weaponDmgType(C.cls, S.wtype);
+  uiFrame(`${CLASSES[C.cls].name} · 레벨 ${C.level}`, `<div class="row">
     <div class="grow" style="min-width:250px">
-      <h3>${CLASSES[C.cls].name} · 레벨 ${C.level}</h3>
-      <p class="dim">경험치 ${C.exp} / ${expToNext(C.level)}</p>
+      <div class="xpbar"><i style="width:${Math.min(100, C.exp / expToNext(C.level) * 100)}%"></i><span>경험치 ${C.exp} / ${expToNext(C.level)}</span></div>
       <p>남은 능력치 포인트: <b class="c-rare">${C.statPts}</b></p>
       <table class="stats">
         ${row('str', '힘', '물리 피해 +1%/점')}
@@ -282,23 +387,21 @@ function renderChar() {
         ${row('vit', '활력', '생명력 +3/점')}
         ${row('ene', '에너지', '마나 +2/점, 주문 피해 증가')}
       </table>
+      <p style="font-size:12px;color:#ffe07a">상성: ${CLASSES[C.cls].matchup}</p>
     </div>
     <div class="grow" style="min-width:230px">
       <table class="stats">
-        <tr><td>무기</td><td>${wt.name} ${S.wmin}-${S.wmax}</td></tr>
-        <tr><td>생명력</td><td>${S.maxHP}</td></tr>
-        <tr><td>마나</td><td>${S.maxMP}</td></tr>
+        <tr><td>무기</td><td>${wt.name} ${S.wmin}-${S.wmax} <span style="color:${DMG_TYPES[wtype].color}">[${DMG_TYPES[wtype].name}]</span></td></tr>
+        <tr><td>생명력 / 마나</td><td>${S.maxHP} / ${S.maxMP}</td></tr>
         <tr><td>갑옷 내구도</td><td>${S.armorMax}</td></tr>
         <tr><td>받는 피해 감소</td><td>${S.dr}%</td></tr>
         <tr><td>치명타</td><td>${S.crit.toFixed(1)}%</td></tr>
-        <tr><td>공격 속도</td><td>+${S.as}%</td></tr>
-        <tr><td>이동 속도</td><td>+${S.ms}%</td></tr>
+        <tr><td>공격 / 이동 속도</td><td>+${S.as}% / +${S.ms}%</td></tr>
         <tr><td>생명력/마나 흡수</td><td>${S.ls}% / ${S.ml}%</td></tr>
         <tr><td>원소 피해</td><td><span class="c-red">${S.fire}</span> / <span class="c-blue">${S.cold}</span> / <span class="c-rare">${S.light}</span></td></tr>
         <tr><td>마법 아이템 / 골드 발견</td><td>${S.mf}% / ${S.gf}%</td></tr>
       </table>
-    </div></div>
-    ${backBtn()}</div>`);
+    </div></div>`);
 }
 
 function renderSkills() {
@@ -307,29 +410,30 @@ function renderSkills() {
     const base = C.skills[k] || 0;
     const lv = skillLevel(k);
     const sk = SKILLS[k];
-    return `<div class="skill"><div class="row" style="align-items:center">
-      <div class="grow"><h3 style="margin:0">${sk.icon} ${sk.name} <span class="dim">[스킬${i + 1}] Lv ${base}${S.skill && base ? ` (+${S.skill})` : ''}</span></h3>
-      <p style="font-size:13px">${sk.desc(Math.max(1, lv))}</p>
-      <p class="dim">마나 ${Math.round(sk.mana(Math.max(1, lv)))} · 재사용 ${sk.cd}초</p></div>
+    return `<div class="card"><div class="row" style="align-items:center">
+      <div class="skicon">${sk.icon}</div>
+      <div class="grow"><b>${sk.name}</b> <span class="dim">[스킬${i + 1}] Lv ${base}${S.skill && base ? ` (+${S.skill})` : ''}</span>
+      <div style="font-size:13px">${sk.desc(Math.max(1, lv))}</div>
+      <div class="dim">마나 ${Math.round(sk.mana(Math.max(1, lv)))} · 재사용 ${sk.cd}초</div></div>
       <button class="primary" data-act="skillUp" data-arg="${k}" ${C.skillPts && base < 20 ? '' : 'disabled'}>+</button>
     </div></div>`;
   }).join('');
-  show(`<div class="panel wide"><h3>스킬 — 남은 포인트 <span class="c-rare">${C.skillPts}</span></h3>${list}${backBtn()}</div>`);
+  uiFrame(`스킬 — 남은 포인트 <span class="c-rare">${C.skillPts}</span>`, list);
 }
 
 function renderSettings() {
-  show(`<div class="panel center"><h3>설정</h3>
-    <div class="menu-list" style="max-width:300px;margin:0 auto">
+  const body = `<div class="menu-list" style="max-width:340px">
       <button data-act="toggleMusic">배경음: ${Audio8.musicOn ? '켜짐' : '꺼짐'}</button>
       <button data-act="toggleSfx">효과음: ${Audio8.sfxOn ? '켜짐' : '꺼짐'}</button>
-      ${C ? `<button data-act="toggleSkipNormal">일반 등급 아이템 줍기: ${C.skipNormal ? '안 함' : '함'}</button>` : ''}
+      ${C && G.state !== 'title' ? `<button data-act="toggleSkipNormal">일반 등급 아이템 줍기: ${C.skipNormal ? '안 함' : '함'}</button>` : ''}
       <button data-act="fullscreen">전체 화면</button>
       ${hasSave() ? '<button data-act="exportSave">세이브 백업 코드 복사</button>' : ''}
       ${G.state === 'title' ? '<button data-act="importSave">세이브 코드로 복원</button>' : ''}
       ${G.state === 'title' && hasSave() ? '<button class="danger" data-act="wipe">저장 데이터 삭제</button>' : ''}
+      ${G.state === 'pause' ? '<button data-act="view" data-arg="help">조작법 · 상성표</button>' : ''}
     </div>
-    <p class="dim" style="font-size:12px">버전 ${APP_VERSION} · 앱을 삭제하면 저장 데이터도 지워집니다. 재설치 전에 백업 코드를 복사해 두세요.</p>
-    ${backBtn()}</div>`);
+    <p class="dim" style="font-size:12px">버전 ${APP_VERSION} · 앱을 삭제하면 저장 데이터도 지워집니다. 재설치 전에 백업 코드를 복사해 두세요.</p>`;
+  uiFrame('설정', body);
 }
 
 function matchupTable() {
@@ -370,16 +474,12 @@ function renderHelp() {
 function renderPause() {
   G.state = 'pause';
   if (G.view !== 'main') return renderSub();
-  show(`<div class="panel center"><h2>일시 정지</h2>
-    <p class="dim">${L.name} · ${DIFFS[C.diff].name}</p>
-    <div class="menu-list" style="max-width:320px;margin:0 auto">
-      <button class="primary" data-act="resume">계속하기</button>
-      <button data-act="view" data-arg="inv">🎒 인벤토리 · 장비</button>
-      <button data-act="view" data-arg="char">📜 캐릭터${C.statPts ? ' <span class="c-rare">●</span>' : ''}</button>
-      <button data-act="view" data-arg="skill">✦ 스킬${C.skillPts ? ' <span class="c-rare">●</span>' : ''}</button>
-      <button data-act="view" data-arg="settings">설정</button>
+  uiFrame('일시 정지', `<p class="dim">${L.name} · ${DIFFS[C.diff].name} · 몬스터 Lv ${L.mlvl}</p>
+    <div class="menu-list" style="max-width:340px">
+      <button class="primary" data-act="resume">▶ 계속하기</button>
+      <button data-act="view" data-arg="help">조작법 · 상성표</button>
       <button class="danger" data-act="portal">🌀 마을 귀환 (지역 진행 초기화)</button>
-    </div></div>`);
+    </div>`);
 }
 
 function pauseGame() {
@@ -480,12 +580,10 @@ const ACTIONS = {
   pickClass: cls => { newCharacter(cls); updateHudButtons(); saveGame(); beginStage(0); },
   help: () => { G.view = 'help'; renderSub(); },
   settings: () => { G.view = 'settings'; renderSub(); },
-  view: v => { G.view = v; G.sel = null; renderSub(); },
+  view: v => { G.view = v; G.sel = null; G.smithMsg = ''; G.craftMsg = ''; renderSub(); },
   back: () => {
-    const wasInvFromShop = G.view === 'inv' && G.prevView === 'shop';
     G.sel = null;
-    G.view = wasInvFromShop ? 'shop' : 'main';
-    G.prevView = null;
+    G.view = 'main';
     if (G.state === 'title') return goTitle();
     if (G.state === 'pause') return renderPause();
     renderTown();
@@ -499,20 +597,20 @@ const ACTIONS = {
     if (C.gold < pp) return;
     if (kind === 'hp' && C.hpPot < 10) { C.hpPot++; C.gold -= pp; }
     if (kind === 'mp' && C.mpPot < 10) { C.mpPot++; C.gold -= pp; }
-    Audio8.play('gold'); saveGame(); renderShop();
+    Audio8.play('gold'); saveGame(); renderSub();
   },
   buyItem: i => {
     const it = G.shopStock[+i];
     if (!it || C.gold < it.value * 4) return;
     if (C.inv.length >= INV_SIZE) { toast('인벤토리가 가득 찼습니다'); return; }
     C.gold -= it.value * 4; C.inv.push(it); G.shopStock.splice(+i, 1);
-    Audio8.play('gold'); saveGame(); renderShop();
+    Audio8.play('gold'); saveGame(); renderSub();
   },
   repair: () => {
     const cost = repairCost();
     if (C.gold < cost) return;
     C.gold -= cost; C.armorCur = S.armorMax;
-    Audio8.play('armor'); saveGame(); renderSmith();
+    Audio8.play('armor'); saveGame(); renderSub();
   },
   gamble: slot => {
     const price = gamblePrice();
@@ -525,48 +623,120 @@ const ACTIONS = {
     Audio8.play(it.rarity === 'unique' ? 'unique' : it.rarity === 'rare' ? 'rare' : 'pickup');
     saveGame(); renderGamble();
   },
-  selInv: i => { G.sel = { src: 'inv', idx: +i }; renderInventory(); },
-  selEq: s => { G.sel = C.equip[s] ? { src: 'eq', slot: s } : null; renderInventory(); },
+  sel: arg => {
+    const i = arg.indexOf(':');
+    const src = arg.slice(0, i), key = arg.slice(i + 1);
+    G.sel = { src, key: src === 'eq' ? key : +key };
+    G.smithMsg = ''; G.craftMsg = '';
+    renderSub();
+  },
   equip: () => {
-    const it = C.inv[G.sel.idx];
-    if (!it || it.req > C.level) return;
+    const it = selItem();
+    if (!it || G.sel.src !== 'inv' || it.req > C.level) return;
     const oldMax = S.armorMax;
     const prev = C.equip[it.slot];
     C.equip[it.slot] = it;
-    C.inv.splice(G.sel.idx, 1);
+    C.inv.splice(G.sel.key, 1);
     if (prev) C.inv.push(prev);
     afterEquipChange(oldMax);
-    G.sel = { src: 'eq', slot: it.slot };
+    G.sel = { src: 'eq', key: it.slot };
     Audio8.play('pickup');
-    renderInventory();
+    renderSub();
   },
   unequip: () => {
-    const s = G.sel.slot;
-    if (s === 'weapon') return;
-    if (C.inv.length >= INV_SIZE) { toast('인벤토리가 가득 찼습니다'); return; }
+    const s = G.sel && G.sel.key;
+    if (!s || s === 'weapon') return;
+    if (C.inv.length >= INV_SIZE) { toast('가방이 가득 찼습니다'); return; }
     const oldMax = S.armorMax;
     C.inv.push(C.equip[s]); C.equip[s] = null;
     afterEquipChange(oldMax);
-    G.sel = null; renderInventory();
+    G.sel = null; renderSub();
   },
   sell: () => {
-    const it = C.inv[G.sel.idx];
-    if (!it) return;
-    C.gold += it.value; C.inv.splice(G.sel.idx, 1); G.sel = null;
-    Audio8.play('gold'); saveGame(); renderInventory();
+    const it = selItem();
+    if (!it || G.sel.src !== 'inv') return;
+    C.gold += it.value; C.inv.splice(G.sel.key, 1); G.sel = null;
+    Audio8.play('gold'); saveGame(); renderSub();
   },
   sellAllNormal: () => {
     let g = 0;
-    C.inv = C.inv.filter(it => { if (it.rarity === 'normal') { g += it.value; return false; } return true; });
+    C.inv = C.inv.filter(it => { if (it.rarity === 'normal' && !it.plus) { g += it.value; return false; } return true; });
     C.gold += g; G.sel = null;
     if (g) Audio8.play('gold');
-    toast(`${g} G 획득`); saveGame(); renderInventory();
+    toast(`${g} G 획득`); saveGame(); renderSub();
   },
   drop: () => {
-    const it = C.inv[G.sel.idx];
-    if (!it) return;
+    const it = selItem();
+    if (!it || G.sel.src !== 'inv') return;
     if (it.rarity !== 'normal' && !confirm(`${it.name}을(를) 버릴까요?`)) return;
-    C.inv.splice(G.sel.idx, 1); G.sel = null; renderInventory();
+    C.inv.splice(G.sel.key, 1); G.sel = null; renderSub();
+  },
+  sortInv: () => { C.inv.sort(itemSort); G.sel = null; renderSub(); },
+  sortStash: () => { C.stash.sort(itemSort); G.sel = null; saveGame(); renderSub(); },
+  toStash: () => {
+    if (!G.sel || G.sel.src !== 'inv' || C.stash.length >= STASH_SIZE) return;
+    C.stash.push(C.inv.splice(G.sel.key, 1)[0]); G.sel = null;
+    Audio8.play('drop'); saveGame(); renderSub();
+  },
+  toInv: () => {
+    if (!G.sel || G.sel.src !== 'stash' || C.inv.length >= INV_SIZE) return;
+    C.inv.push(C.stash.splice(G.sel.key, 1)[0]); G.sel = null;
+    Audio8.play('pickup'); saveGame(); renderSub();
+  },
+  stashAll: () => {
+    while (C.inv.length && C.stash.length < STASH_SIZE) C.stash.push(C.inv.shift());
+    G.sel = null; Audio8.play('drop'); saveGame(); renderSub();
+  },
+  enhance: () => {
+    const it = selItem();
+    if (!canEnhance(it)) return;
+    const e = enhanceCost(it);
+    if (!hasMats(e.cost) || C.gold < e.gold) return;
+    payMats(e.cost); C.gold -= e.gold;
+    const oldMax = S.armorMax;
+    if (Math.random() * 100 < e.rate) {
+      it.plus = (it.plus || 0) + 1;
+      it.value = Math.floor(it.value * 1.15);
+      G.smithMsg = `<b class="c-green">강화 성공! +${it.plus}</b>`;
+      Audio8.play('level');
+    } else {
+      G.smithMsg = `<b class="c-red">강화 실패…</b> <span class="dim">재료와 골드만 소모되었습니다.</span>`;
+      Audio8.play('armor');
+    }
+    if (G.sel.src === 'eq') afterEquipChange(oldMax); else saveGame();
+    renderSub();
+  },
+  salvage: () => {
+    const it = selItem();
+    if (!it || G.sel.src !== 'inv') return;
+    if ((it.rarity === 'unique' || it.plus >= 5) && !confirm(`${displayName(it)}을(를) 분해할까요?`)) return;
+    const y = craftSalvage(it);
+    C.inv.splice(G.sel.key, 1); G.sel = null;
+    G.craftMsg = `♻ 분해 완료: ${matsText(y) || '재료 없음'}`;
+    Audio8.play('hit'); saveGame(); renderSub();
+  },
+  recipe: id => {
+    const it = selItem();
+    const r = RECIPES.find(x => x.id === id);
+    if (!it || !r || !r.can(it)) return;
+    const cost = r.cost(it), gold = r.gold(it);
+    if (!hasMats(cost) || C.gold < gold) return;
+    payMats(cost); C.gold -= gold;
+    r.run(it);
+    G.craftMsg = `${r.icon} ${r.name} 완료 → <span class="c-${it.rarity}">${displayName(it)}</span>`;
+    Audio8.play(it.rarity === 'rare' ? 'rare' : 'pickup');
+    saveGame(); renderSub();
+  },
+  craftUnique: slot => {
+    const cost = uniqueCraftCost(), gold = uniqueCraftGold();
+    if (!hasMats(cost) || C.gold < gold || C.inv.length >= INV_SIZE) return;
+    payMats(cost); C.gold -= gold;
+    const it = genItem(C.level + DIFFS[C.diff].lvl * 0.3, { slot, rarity: 'unique' });
+    C.inv.push(it);
+    G.sel = { src: 'inv', key: C.inv.length - 1 };
+    G.craftMsg = `🔮 제작 완료 → <span class="c-${it.rarity}">${it.name}</span>`;
+    Audio8.play(it.rarity === 'unique' ? 'unique' : 'rare');
+    saveGame(); renderSub();
   },
   stat: k => {
     if (C.statPts <= 0) return;

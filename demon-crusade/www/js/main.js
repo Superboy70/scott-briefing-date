@@ -165,7 +165,8 @@ function tick(dt) {
       for (let i = 0; i < 2; i++) {
         const lv = skillLevel(sk[i]);
         const el = document.getElementById(`btn-s${i + 1}`);
-        el.classList.toggle('cool', P.skCd[i] > 0 || (lv > 0 && P.mp < SKILLS[sk[i]].mana(lv)));
+        el.classList.toggle('cool', lv > 0 && P.mp < SKILLS[sk[i]].mana(lv));
+        el.style.setProperty('--cd', P.skCd[i] > 0 ? (P.skCd[i] / SKILLS[sk[i]].cd).toFixed(2) : 0);
       }
       document.getElementById('hp-cnt').textContent = C.hpPot;
       document.getElementById('mp-cnt').textContent = C.mpPot;

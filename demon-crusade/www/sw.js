@@ -1,9 +1,9 @@
 // 오프라인 플레이용 서비스 워커
-const CACHE = 'demon-crusade-v2';
+const CACHE = 'demon-crusade-v4';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
-  './js/audio.js', './js/data.js', './js/items.js', './js/world.js',
-  './js/entities.js', './js/render.js', './js/ui.js', './js/main.js',
+  './js/audio.js', './js/data.js', './js/items.js', './js/craft.js', './js/world.js',
+  './js/entities.js', './js/render.js', './js/sprites.js', './js/ui.js', './js/main.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 self.addEventListener('install', e => {

@@ -20,6 +20,7 @@ function newCharacter(cls) {
     progress: [0, -1, -1], diff: 0, cleared: [false, false, false],
     checkpoint: null, kills: 0, deaths: 0, playTime: 0,
   };
+  ensureCharData(C);
   calcStats();
   C.armorCur = S.armorMax;
   return C;
@@ -32,7 +33,7 @@ function calcStats() {
   for (const s of SLOTS) {
     const it = C.equip[s];
     if (!it) continue;
-    if (it.def) armorMax += it.def;
+    if (it.def) armorMax += effDef(it);
     for (const k in it.aff) tot[k] += it.aff[k];
   }
   const st = {
@@ -48,7 +49,7 @@ function calcStats() {
     dr: Math.min(60, tot.dr),
     crit: Math.min(60, st.dex / 5 + tot.crit),
     wtype: w ? w.type : CLASSES[C.cls].weapon,
-    wmin: w ? w.min : 1, wmax: w ? w.max : 2,
+    wmin: w ? effMin(w) : 1, wmax: w ? effMax(w) : 2,
     mregen: 1 + st.ene * 0.035,
   };
   return S;
@@ -473,6 +474,7 @@ function dropLoot(e) {
   }
   if (Math.random() < 0.06 + tier * 0.1) spawnPickup(Math.random() < 0.65 ? 'hp' : 'mp', x, y);
   if (Math.random() < 0.02 + tier * 0.05) spawnPickup('armor', x, y);
+  dropMats(x, y, tier);
 }
 
 function spawnPickup(kind, x, y, o = {}) {
@@ -496,6 +498,11 @@ function collectPickup(pk) {
       Audio8.play('shrine');
       break;
     }
+    case 'mat':
+      C.mats[pk.mat] += pk.amount;
+      addText(pk.x, pk.y - 6, `${MATS[pk.mat].icon}${MATS[pk.mat].name} +${pk.amount}`, MATS[pk.mat].color);
+      Audio8.play('pickup');
+      break;
     case 'item':
       if (C.skipNormal && pk.item.rarity === 'normal') return;
       if (C.inv.length >= INV_SIZE) { if (!pk.warned) { toast('인벤토리가 가득 찼습니다'); pk.warned = true; } return; }
@@ -532,6 +539,7 @@ function breakObjects(box) {
         spawnPickup('item', x, y, { item: genItem(L.mlvl + 1, { mf: S.mf, boost: 0.2 }) });
         spawnPickup('gold', x, y, { amount: irand(L.mlvl * 3, L.mlvl * 8 + 10) });
         if (Math.random() < 0.2) spawnPickup('armor', x, y);
+        if (Math.random() < 0.5) spawnPickup('mat', x, y, { mat: 'iron', amount: irand(1, 2) });
       }
     }
     Audio8.play('hit');

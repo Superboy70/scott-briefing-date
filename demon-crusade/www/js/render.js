@@ -4,7 +4,8 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let VW = 480, SCALE = 2, hudL = 8, hudR = 8, gtime = 0;
 
-const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+let drawCtx = ctx; // 초상화 등 오프스크린 그리기 시 교체
+const R = (x, y, w, h, c) => { drawCtx.fillStyle = c; drawCtx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
 // ---------- 배경 ----------
 function drawSky(A, parallaxX) {
@@ -149,29 +150,14 @@ function drawPlayer() {
   if (P.face < 0) ctx.scale(-1, 1);
   ctx.translate(-6, 0);
   const walk = P.onGround && Math.abs(P.vx) > 5 ? Math.sin(P.anim * 3) : 0;
-  const l1 = walk > 0 ? 1 : 0, l2 = walk < 0 ? 1 : 0;
+  const phase = walk > 0.3 ? 1 : walk < -0.3 ? -1 : 0;
   if (P.buffs.shield > 0) { ctx.globalAlpha = 0.3 + Math.sin(gtime * 6) * 0.1; R(-4, -4, 20, 30, '#ffe07a'); ctx.globalAlpha = 1; }
   if (P.duck > 0) {
     R(1, 10, 11, 9, '#ffd84a'); R(7, 3, 6, 8, '#ffd84a'); R(12, 7, 4, 2, '#ff8a20'); R(10, 5, 1, 1, '#000');
     R(3, 19, 2, 3, '#ff8a20'); R(8, 19, 2, 3, '#ff8a20'); R(0, 12, 3, 3, '#e8c040');
-  } else if (P.armor > 0) {
-    R(-1, 7, 3, 10, cl.cape);
-    R(3, 14 - l1, 3, 8 + l1, cl.armor); R(7, 14 - l2, 3, 8 + l2, cl.armor);
-    R(3, 20, 3, 2, '#333'); R(7, 20, 3, 2, '#333');
-    R(2, 6, 8, 9, cl.armor); R(2, 12, 8, 1, cl.trim); R(5, 7, 2, 4, cl.trim);
-    if (C.cls === 'paladin') { R(2, 0, 8, 6, cl.armor); R(6, 2, 4, 1, '#111'); R(3, -3, 3, 3, cl.cape); }
-    else if (C.cls === 'sorc') { R(2, 0, 8, 6, cl.armor); R(5, 2, 4, 3, '#f0c090'); R(8, 3, 1, 1, '#000'); R(3, -3, 5, 3, cl.armor); R(4, -5, 3, 2, cl.armor); }
-    else { R(2, 0, 8, 6, cl.cape); R(5, 2, 4, 3, '#d8d0c0'); R(8, 3, 1, 1, '#c00'); }
   } else {
-    // 갑옷이 부서지면… 하트 팬티 차림
-    R(3, 14 - l1, 3, 8 + l1, '#f0c090'); R(7, 14 - l2, 3, 8 + l2, '#f0c090');
-    R(3, 6, 7, 7, '#f0c090');
-    R(3, 12, 7, 4, '#fff'); R(4, 13, 1, 1, '#e33'); R(7, 14, 1, 1, '#e33');
-    R(3, 0, 7, 6, '#f0c090'); R(3, 0, 7, 2, '#5a3a1a'); R(8, 2, 1, 1, '#000');
-  }
-  if (P.duck <= 0) {
-    if (P.atkAnim > 0) { R(8, 7, 7, 3, P.armor > 0 ? cl.armor : '#f0c090'); }
-    else R(8, 7, 3, 6, P.armor > 0 ? cl.armor : '#f0c090');
+    ctx.translate(-2, -2 + (phase !== 0 && Math.abs(walk) > 0.9 ? -1 : 0));
+    drawHero(C.cls, P.armor <= 0, phase, P.atkAnim > 0, S.wtype);
   }
   ctx.restore();
 }
@@ -211,11 +197,8 @@ function drawEnemy(e) {
   const f = Math.floor(e.t * 8) % 2;
   switch (e.type) {
     case 'zombie': {
-      ctx.translate(x + 6, y); if (flip) ctx.scale(-1, 1); ctx.translate(-6, 0);
-      R(3, 0, 7, 6, '#7a9a5a'); R(7, 2, 2, 1, '#e22'); R(3, 0, 7, 1, '#3a4a2a');
-      R(2, 6, 8, 8, '#5a4a6a'); R(3, 9, 3, 2, '#7a9a5a');
-      R(8, 7, 6, 2, '#7a9a5a');
-      R(3, 14, 3, 8 - f, '#4a3a3a'); R(7, 14, 3, 7 + f, '#4a3a3a');
+      ctx.translate(x + 6, y + (f && Math.abs(e.vx) > 1 ? -1 : 0)); if (flip) ctx.scale(-1, 1);
+      blit('zombie', -8, 0);
       break;
     }
     case 'skeleton': drawSkeleton(x, y, e.face, e.t); break;
@@ -228,10 +211,9 @@ function drawEnemy(e) {
       break;
     }
     case 'ghost':
-      ctx.globalAlpha *= 0.8;
-      R(x + 2, y, 10, 12, '#d8e8f0'); R(x, y + 6, 14, 8, '#d8e8f0');
-      for (let i = 0; i < 4; i++) R(x + i * 4, y + 14 + ((i + f) % 2) * 2, 3, 3, '#d8e8f0');
-      R(x + 4, y + 4, 2, 3, '#113'); R(x + 9, y + 4, 2, 3, '#113');
+      ctx.globalAlpha *= 0.85;
+      ctx.translate(x + 7, y + Math.sin(e.t * 3) * 2); if (flip) ctx.scale(-1, 1);
+      blit('ghost', -7, 0);
       break;
     case 'plant':
       R(x + 6, y + 8, 3, 12, '#2a6a2a'); R(x + 1, y + 14, 5, 3, '#3a8a3a'); R(x + 9, y + 12, 5, 3, '#3a8a3a');
@@ -408,6 +390,7 @@ function drawPickups() {
       case 'gold': R(x + 2, y + 5, 6, 5, '#d0a020'); R(x + 3, y + 3, 5, 3, '#ffd24a'); break;
       case 'hp': R(x + 3, y + 1, 4, 2, '#aaa'); R(x + 2, y + 3, 6, 7, '#d02020'); R(x + 3, y + 4, 2, 2, '#ff8080'); break;
       case 'mp': R(x + 3, y + 1, 4, 2, '#aaa'); R(x + 2, y + 3, 6, 7, '#2040d0'); R(x + 3, y + 4, 2, 2, '#80a0ff'); break;
+      case 'mat': { const c = MATS[pk.mat].color; R(x + 2, y + 2, 6, 6, c); R(x + 3, y + 3, 2, 2, '#fff'); R(x + 1, y + 4, 8, 2, c); break; }
       case 'armor': R(x + 1, y + 1, 8, 9, '#c8c8d8'); R(x + 3, y + 3, 4, 2, '#fff'); R(x, y, 10, 2, '#d9a93e'); break;
       case 'item': {
         const it = pk.item, col = RARITY[it.rarity].color;

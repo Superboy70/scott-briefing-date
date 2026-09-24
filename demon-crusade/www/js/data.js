@@ -1,6 +1,6 @@
 'use strict';
 // ===== 공통 상수 / 유틸 =====
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const TILE = 16, VH = 270, ROWS = 17, GRAV = 900;
 const rand = (a, b) => a + Math.random() * (b - a);
 const irand = (a, b) => Math.floor(rand(a, b + 1));
