@@ -352,3 +352,14 @@ table.stats td:last-child { text-align: right; }
 }
 .modal .panel { max-width: 420px; }
 .modal textarea { background: #0b0806; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px; user-select: text; -webkit-user-select: text; touch-action: auto; }
+
+/* v1.3 회피 버튼 */
+#actions { width: 250px; }
+.btn.dodge { right: 172px; bottom: 8px; background: rgba(160, 200, 255, 0.16); --cd: 0; overflow: hidden; }
+.btn.dodge::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(rgba(0, 0, 0, .6) calc(var(--cd) * 360deg), transparent 0); }
+#potions { right: calc(270px + var(--safe-r)); }
+@media (max-height: 380px) {
+  #actions { width: 224px; }
+  .btn.dodge { right: 150px; bottom: 6px; }
+  #potions { right: calc(242px + var(--safe-r)); }
+}

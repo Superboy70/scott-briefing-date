@@ -65,6 +65,8 @@ const Audio8 = (() => {
     curse: () => { [600, 500, 400, 300].forEach((f, i) => tone(f, 0.12, 'triangle', 0.1, 0, i * 0.1)); },
     fire: () => { noise(0.25, 0.08, 0, 300); },
     zap: () => { noise(0.08, 0.12, 0, 4000); tone(1500, 0.06, 'square', 0.05, -900); },
+    dodge: () => { noise(0.12, 0.06, 0, 2500); tone(500, 0.1, 'sine', 0.05, -250); },
+    block: () => { tone(1400, 0.05, 'square', 0.07, -600); tone(900, 0.12, 'triangle', 0.06); noise(0.05, 0.08, 0, 3000); },
     click: () => { tone(700, 0.04, 'square', 0.04); },
     die: () => { [330, 262, 196, 131].forEach((f, i) => tone(f, 0.4, 'sawtooth', 0.1, 0, i * 0.25)); },
   };

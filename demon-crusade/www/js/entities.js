@@ -5,7 +5,7 @@ let S = null;   // 계산된 능력치
 let P = null;   // 플레이어 개체(런타임)
 let enemies = [], shots = [], eshots = [], pickups = [], parts = [], texts = [], minions = [], fx = [];
 let camX = 0, shake = 0, banner = null, bossRef = null;
-const input = { left: false, right: false, jump: false, attack: false, s1: false, s2: false };
+const input = { left: false, right: false, jump: false, attack: false, s1: false, s2: false, dodge: false };
 const pressed = {};
 
 function newCharacter(cls) {
@@ -48,6 +48,7 @@ function calcStats() {
     armorMax: armorMax + tot.armor,
     dr: Math.min(60, tot.dr),
     crit: Math.min(60, st.dex / 5 + tot.crit),
+    block: Math.min(50, (C.cls === 'paladin' ? 20 : 5) + st.dex * 0.1 + tot.block),
     wtype: w ? w.type : CLASSES[C.cls].weapon,
     wmin: w ? effMin(w) : 1, wmax: w ? effMax(w) : 2,
     mregen: 1 + st.ene * 0.035,
@@ -90,6 +91,7 @@ function startStage(stageIdx) {
     x: sx, y: gy - 22, w: 12, h: 22, vx: 0, vy: 0, face: 1, onGround: false,
     hp: S.maxHP, mp: S.maxMP, armor: Math.min(S.armorMax, C.armorCur ?? S.armorMax),
     inv: 1.2, hurt: 0, atkCd: 0, skCd: [0, 0], coyote: 0, anim: 0, atkAnim: 0,
+    dodging: 0, dodgeInv: 0, dodgeCd: 0, dodgeDir: 1, dodgeMissed: false, blockFx: 0,
     buffs: { shield: 0, exp: 0, combat: 0 }, duck: 0, webbed: 0,
     safeX: sx, safeY: gy - 22, regenAcc: 0, dead: false, cleared: false,
   };
@@ -133,6 +135,9 @@ function spawnEnemy(type, x, y, opts = {}) {
   return e;
 }
 
+const DODGE_CD = 0.9;
+function blockChance() { return Math.min(75, S.block + (P && P.buffs.shield > 0 ? 25 : 0)); }
+
 // ===== 플레이어 업데이트 =====
 function updatePlayer(dt) {
   if (P.dead || P.cleared) return;
@@ -146,6 +151,19 @@ function updatePlayer(dt) {
     else P.vx += (target - P.vx) * Math.min(1, dt * 5);
   }
   if (dir) P.face = dir;
+  // 회피 구르기: 짧은 무적 + 돌진 (공중에서도 가능)
+  P.dodgeCd -= dt; P.dodgeInv -= dt;
+  if (pressed.dodge && P.dodgeCd <= 0 && P.duck <= 0 && P.hurt <= 0 && P.dodging <= 0) {
+    P.dodging = 0.26; P.dodgeInv = 0.36; P.dodgeCd = DODGE_CD; P.dodgeMissed = false;
+    P.dodgeDir = dir || P.face; P.face = P.dodgeDir;
+    Audio8.play('dodge');
+  }
+  if (P.dodging > 0) {
+    P.dodging -= dt;
+    P.vx = P.dodgeDir * 290 * (1 + S.ms / 200);
+    if (!P.onGround) P.vy = Math.min(P.vy, 40);
+    if (Math.random() < 0.6) parts.push({ x: P.x + 6 - P.dodgeDir * 4, y: P.y + rand(4, 20), vx: -P.dodgeDir * 30, vy: 0, t: 0.25, col: 'rgba(220,220,255,0.7)', sz: 2 });
+  }
   P.coyote = P.onGround ? 0.09 : P.coyote - dt;
   if (pressed.jump && P.coyote > 0 && P.hurt <= 0) {
     P.vy = -335; P.coyote = 0; Audio8.play('jump');
@@ -153,7 +171,7 @@ function updatePlayer(dt) {
   if (!input.jump && P.vy < -130 && P.hurt <= 0) P.vy = -130;
 
   P.atkCd -= dt; P.skCd[0] -= dt; P.skCd[1] -= dt;
-  if (input.attack && P.atkCd <= 0 && P.duck <= 0) fireWeapon();
+  if (input.attack && P.atkCd <= 0 && P.duck <= 0 && P.dodging <= 0) fireWeapon();
   if (pressed.s1) useSkill(0);
   if (pressed.s2) useSkill(1);
   if (pressed.hpPot) drinkPotion('hp');
@@ -176,6 +194,7 @@ function updatePlayer(dt) {
   }
 
   P.anim += Math.abs(P.vx) * dt * 0.08;
+  P.blockFx -= dt;
   P.atkAnim -= dt; P.inv -= dt; P.duck -= dt; P.webbed -= dt;
   for (const k in P.buffs) P.buffs[k] -= dt;
   // 재생
@@ -403,7 +422,26 @@ function killEnemy(e) {
 }
 
 function hurtPlayer(dmg, srcX, o = {}) {
-  if (P.inv > 0 || P.dead || P.cleared) return;
+  if (P.dead || P.cleared) return;
+  if (P.dodgeInv > 0) {
+    // 회피 성공: 한 번의 구르기에서 처음 피한 공격에 대해 마나 소량 회복
+    if (!P.dodgeMissed) {
+      P.dodgeMissed = true;
+      P.mp = Math.min(S.maxMP, P.mp + S.maxMP * 0.05);
+      addText(P.x + 6, P.y - 8, '회피!', '#bfe8ff');
+    }
+    return;
+  }
+  if (P.inv > 0) return;
+  // 방어(막기): 정면에서 오는 공격을 확률적으로 막는다
+  const front = Math.sign(srcX - (P.x + P.w / 2)) === P.face;
+  if (!o.unblockable && front && P.dodging <= 0 && Math.random() * 100 < blockChance()) {
+    P.inv = 0.45; P.hurt = 0.12; P.vx = -P.face * 70; P.blockFx = 0.2;
+    addText(P.x + 6, P.y - 8, '막기!', '#ffe07a');
+    for (let i = 0; i < 6; i++) parts.push({ x: P.x + 6 + P.face * 8, y: P.y + 10, vx: P.face * rand(20, 90), vy: rand(-90, 10), t: 0.3, col: '#ffe07a', sz: 2, grav: 1 });
+    Audio8.play('block');
+    return;
+  }
   let red = S.dr + (P.buffs.shield > 0 ? P.shieldDr : 0);
   let d = Math.max(1, Math.round(dmg * (1 - Math.min(75, red) / 100)));
   if (P.armor > 0) {
@@ -629,7 +667,7 @@ function updateShots(dt) {
     s.x += s.vx * dt; s.y += s.vy * dt;
     if (s.kind !== 'beam' && s.kind !== 'wave' && solidAtPx(s.x + s.w / 2, s.y + s.h / 2)) { s.life = 0; continue; }
     if (s.kind === 'beam') { if (s.warn > 0) { s.warn -= dt; continue; } }
-    if (overlap(s, P)) { hurtPlayer(s.dmg, s.x + s.w / 2, { slowWeb: s.kind === 'web' }); if (s.kind !== 'beam') s.life = 0; }
+    if (overlap(s, P)) { hurtPlayer(s.dmg, s.x + s.w / 2, { slowWeb: s.kind === 'web', unblockable: s.kind === 'beam' || s.kind === 'wave' }); if (s.kind !== 'beam') s.life = 0; }
     for (const m of minions) if (s.life > 0 && s.kind !== 'beam' && overlap(s, m)) { m.hp -= s.dmg; s.life = 0; }
   }
   eshots = eshots.filter(s => s.life > 0 && s.y < VH + 30);

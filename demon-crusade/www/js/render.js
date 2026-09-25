@@ -157,7 +157,18 @@ function drawPlayer() {
     R(3, 19, 2, 3, '#ff8a20'); R(8, 19, 2, 3, '#ff8a20'); R(0, 12, 3, 3, '#e8c040');
   } else {
     ctx.translate(-2, -2 + (phase !== 0 && Math.abs(walk) > 0.9 ? -1 : 0));
-    drawHero(C.cls, P.armor <= 0, phase, P.atkAnim > 0, S.wtype);
+    if (P.dodging > 0) {
+      // 구르기: 몸을 낮추고 반투명 잔상
+      ctx.globalAlpha = 0.75;
+      ctx.translate(8, 24); ctx.scale(1.1, 0.72); ctx.translate(-8, -24);
+    }
+    drawHero(C.cls, P.armor <= 0, P.dodging > 0 ? 0 : phase, P.atkAnim > 0, S.wtype);
+    ctx.globalAlpha = 1;
+    if (P.blockFx > 0) {
+      ctx.globalAlpha = Math.min(1, P.blockFx * 6);
+      R(16, 4, 3, 16, '#ffe07a'); R(19, 7, 2, 10, '#fff4c0');
+      ctx.globalAlpha = 1;
+    }
   }
   ctx.restore();
 }

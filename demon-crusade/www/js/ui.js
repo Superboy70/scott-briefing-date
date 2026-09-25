@@ -96,6 +96,7 @@ function goTitle() {
       <button ${save ? '' : 'class="primary"'} data-act="newGame">새 게임</button>
       <button data-act="help">조작법 · 게임 방법</button>
       <button data-act="settings">설정</button>
+      ${isNative ? '<button data-act="exitApp">게임 종료</button>' : ''}
     </div>
     <p class="dim" style="margin-top:10px">갑옷이 부서지면 속옷 차림… 두 번 깨야 진짜 엔딩.</p>
     <p class="dim" style="font-size:11px">v${APP_VERSION}</p>
@@ -191,7 +192,7 @@ function renderTown() {
   </div>
   <div class="row" style="margin-top:8px;justify-content:space-between;align-items:center">
     <span class="dim">갑옷 ${Math.ceil(C.armorCur ?? 0)}/${S.armorMax} · 처치 ${C.kills} · 사망 ${C.deaths}</span>
-    <button class="mini" data-act="saveQuit">💾 저장 후 타이틀로</button>
+    <span><button class="mini" data-act="saveQuit">💾 저장 후 타이틀로</button>${isNative ? '<button class="mini" data-act="exitApp">⏻ 게임 종료</button>' : ''}</span>
   </div>`);
 }
 
@@ -410,7 +411,7 @@ function renderChar() {
       <p>남은 능력치 포인트: <b class="c-rare">${C.statPts}</b></p>
       <table class="stats">
         ${row('str', '힘', '물리 피해 +1%/점')}
-        ${row('dex', '민첩', '치명타 확률 +0.2%/점')}
+        ${row('dex', '민첩', '치명타 +0.2%/점, 막기 +0.1%/점')}
         ${row('vit', '활력', '생명력 +3/점')}
         ${row('ene', '에너지', '마나 +2/점, 주문 피해 증가')}
       </table>
@@ -422,7 +423,7 @@ function renderChar() {
         <tr><td>생명력 / 마나</td><td>${S.maxHP} / ${S.maxMP}</td></tr>
         <tr><td>갑옷 내구도</td><td>${S.armorMax}</td></tr>
         <tr><td>받는 피해 감소</td><td>${S.dr}%</td></tr>
-        <tr><td>치명타</td><td>${S.crit.toFixed(1)}%</td></tr>
+        <tr><td>치명타 / 막기</td><td>${S.crit.toFixed(1)}% / ${S.block.toFixed(1)}%</td></tr>
         <tr><td>공격 / 이동 속도</td><td>+${S.as}% / +${S.ms}%</td></tr>
         <tr><td>생명력/마나 흡수</td><td>${S.ls}% / ${S.ml}%</td></tr>
         <tr><td>원소 피해</td><td><span class="c-red">${S.fire}</span> / <span class="c-blue">${S.cold}</span> / <span class="c-rare">${S.light}</span></td></tr>
@@ -478,13 +479,16 @@ function matchupTable() {
 
 function renderHelp() {
   show(`<div class="panel wide"><h3>조작법</h3>
-    <p>◀ ▶ 이동 · <b>점프</b> (길게 누르면 높이) · <b>공격</b> (누르고 있으면 연사) · <b>스킬1/2</b> · ♥/✦ 물약 · ☰ 메뉴</p>
-    <p class="dim">키보드: ←→/AD 이동, Space/W 점프, J/Z 공격, K/X 스킬1, L/C 스킬2, Q/E 물약, Esc 메뉴</p>
+    <p>◀ ▶ 이동 · <b>점프</b> (길게 누르면 높이) · <b>공격</b> (누르고 있으면 연사) · <b>회피</b> (구르기) · <b>스킬1/2</b> · ♥/✦ 물약 · ☰ 메뉴</p>
+    <p class="dim">키보드: ←→/AD 이동, Space/W 점프, J/Z 공격, Shift/V 회피, K/X 스킬1, L/C 스킬2, Q/E 물약, Esc 메뉴</p>
     <h3 style="margin-top:8px">공격 방식</h3>
     <p>• <b>공격 버튼</b>: 적이 멀리 있으면 무기를 <b>던지고</b>, 바로 앞(한 칸 이내)에 붙어 있으면 무기로 <b>직접 벱니다</b>(근접 125% 피해, 투척 개수 제한 없음).</p>
     <p>• 성기사: 공격 버튼 = 창 투척/베기(신성), 스킬1 심판의 일격 = 강력한 근접 강타(신성·기절)</p>
     <p>• 소서리스: 마법구 투척(마법, 약한 유도) · 서리 구체(냉기) · 순간이동</p>
     <p>• 네크로맨서: 단검 투척/베기(독) · 해골 소환(해골이 근접 물리 공격) · 뼈 창(마법, 전부 관통)</p>
+    <h3 style="margin-top:8px">회피와 방어</h3>
+    <p>• <b>회피(구르기)</b> 버튼: 짧게 돌진하며 약 0.35초 무적. 적과 투사체를 통과할 수 있고 공중에서도 됩니다. 재사용 0.9초. 공격을 피하면 "회피!" + 마나 5% 회복.</p>
+    <p>• <b>막기</b>: 정면에서 오는 공격을 확률로 자동 방어(피해 0). 성기사 20%, 그 외 5% + 민첩 10당 1%, 장비 "막기 확률" 옵션, 신성 방패 중 +25% (최대 75%). 등 뒤 공격·보스의 광선·충격파는 막을 수 없으니 구르기로 피하세요.</p>
     <h3 style="margin-top:8px">상성표 (피해 배율)</h3>
     <p class="dim" style="font-size:12px">직업의 주력 무기를 들면 공격 속성이 바뀝니다. 성기사 창·도끼 → 신성, 네크로맨서 단검 → 독, 횃불 → 화염, 마법구 → 마법, 나머지는 물리. 반지·목걸이의 화염/냉기/번개 추가 피해도 상성을 따릅니다.</p>
     ${matchupTable()}
@@ -506,7 +510,10 @@ function renderPause() {
       <button class="primary" data-act="resume">▶ 계속하기</button>
       <button data-act="view" data-arg="help">조작법 · 상성표</button>
       <button class="danger" data-act="portal">🌀 마을 귀환 (지역 진행 초기화)</button>
-    </div>`);
+      <button data-act="quitToTitle">💾 저장 후 타이틀로</button>
+      ${isNative ? '<button data-act="exitApp">⏻ 저장 후 게임 종료</button>' : ''}
+    </div>
+    <p class="dim" style="font-size:12px">지역 도중에 나가면 체크포인트(⚑)부터 다시 시작합니다. 장비·골드·경험치는 모두 저장됩니다.</p>`);
 }
 
 function pauseGame() {
@@ -816,6 +823,12 @@ const ACTIONS = {
   fullscreen: () => requestFullscreen(),
   wipe: () => askConfirm('저장 데이터를 삭제할까요? 되돌릴 수 없습니다.', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ } goTitle(); }, '삭제'),
   resume: resumeGame,
+  quitToTitle: () => askConfirm('저장하고 타이틀 화면으로 나갈까요?<br><span class="dim">체크포인트부터 다시 시작합니다.</span>', () => { if (P) C.armorCur = P.armor; saveGame(); P = null; goTitle(); }, '나가기'),
+  exitApp: () => askConfirm('저장하고 게임을 종료할까요?', () => {
+    if (P && G.state !== 'title') C.armorCur = P.armor;
+    saveGame();
+    try { window.Capacitor.Plugins.App.exitApp(); } catch (e) { goTitle(); }
+  }, '종료'),
   portal: () => askConfirm('마을로 귀환할까요? 이 지역은 처음부터(체크포인트) 다시 진행합니다.', () => { C.armorCur = P.armor; enterTown(); }, '귀환'),
 };
 

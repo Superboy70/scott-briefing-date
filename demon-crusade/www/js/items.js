@@ -71,6 +71,7 @@ const AFFIXES = {
   crit:   { label: v => `치명타 확률 +${v}%`, pre: '치명적인', slots: ['weapon', 'ring', 'amulet', 'helm'], roll: l => irand(3, 5 + Math.floor(l / 5)) },
   regen:  { label: v => `생명력 재생 +${v}/초`, suf: '재생의', slots: ['armor', 'helm', 'ring', 'amulet'], roll: l => irand(1, 2 + Math.floor(l / 8)) },
   ms:     { label: v => `이동 속도 +${v}%`, suf: '질풍의', slots: ['armor', 'ring', 'amulet'], roll: l => irand(5, 8 + Math.floor(l / 6)) },
+  block:  { label: v => `막기 확률 +${v}%`, suf: '성벽의', slots: ['armor', 'helm', 'amulet'], roll: l => irand(3, 5 + Math.floor(l / 10)) },
   all:    { label: v => `모든 능력치 +${v}`, suf: '왕의', slots: ['ring', 'amulet'], roll: l => (l >= 10 ? irand(2, 3 + Math.floor(l / 8)) : 0) },
 };
 const AFF_ORDER = Object.keys(AFFIXES);

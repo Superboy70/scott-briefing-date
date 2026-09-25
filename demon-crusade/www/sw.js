@@ -1,5 +1,5 @@
 // 오프라인 플레이용 서비스 워커
-const CACHE = 'demon-crusade-v4';
+const CACHE = 'demon-crusade-v5';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/audio.js', './js/data.js', './js/items.js', './js/craft.js', './js/world.js',

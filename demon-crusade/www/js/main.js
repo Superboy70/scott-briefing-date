@@ -83,7 +83,7 @@ const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   Space: 'jump', KeyW: 'jump', ArrowUp: 'jump',
   KeyJ: 'attack', KeyZ: 'attack', KeyK: 's1', KeyX: 's1', KeyL: 's2', KeyC: 's2',
-  KeyQ: 'hpPot', KeyE: 'mpPot',
+  KeyQ: 'hpPot', KeyE: 'mpPot', ShiftLeft: 'dodge', ShiftRight: 'dodge', KeyV: 'dodge',
 };
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape' || e.code === 'KeyP') {
@@ -168,6 +168,7 @@ function tick(dt) {
         el.classList.toggle('cool', lv > 0 && P.mp < SKILLS[sk[i]].mana(lv));
         el.style.setProperty('--cd', P.skCd[i] > 0 ? (P.skCd[i] / SKILLS[sk[i]].cd).toFixed(2) : 0);
       }
+      document.getElementById('btn-dodge').style.setProperty('--cd', P.dodgeCd > 0 ? (P.dodgeCd / DODGE_CD).toFixed(2) : 0);
       document.getElementById('hp-cnt').textContent = C.hpPot;
       document.getElementById('mp-cnt').textContent = C.mpPot;
     }
