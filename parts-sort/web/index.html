@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="ko" class="web">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>부품함 정리</title>
+<meta name="theme-color" content="#1c2a2f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@600&family=IBM+Plex+Sans+KR:wght@400;700&display=swap">
+<style>
+/* 레이아웃: 정전기 방지 작업 매트 위에 부품함 칸이 놓인 한 화면. 위 정보줄 · 가운데 부품함 · 아래 도구와 색띠 표.
+   한 가지 모습(어두운 매트)으로 고정 — 부품 색이 가장 잘 보이는 바탕이라서. */
+:root {
+  --mat: #1c2a2f;      /* ESD 매트 */
+  --mat-2: #23353b;    /* 매트 격자·패널 */
+  --bin: rgba(214, 236, 240, 0.05);
+  --bin-edge: #4b6a72;
+  --fg: #e4eef0;
+  --muted: #8ea6ac;
+  --accent: #f0b23a;   /* 인두 표시등 호박색 */
+  --ok: #6fcf8b;
+  --lead: #b9c4c8;     /* 저항 다리(리드선) */
+  --f-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; } /* 배포판엔 아티팩트 기본 스타일이 없어서 직접 둔다 */
+html.web body { margin: 0; }
+body {
+  background: var(--mat);
+  background-image:
+    linear-gradient(var(--mat-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mat-2) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--fg);
+  font-family: var(--f-body);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+html.web body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; }
+
+.app {
+  height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--f-display); font-weight: 400; font-size: 1.6rem; letter-spacing: 0.02em; margin: 0; line-height: 1; }
+.brand span { display: block; color: var(--muted); font-size: 0.75rem; margin-top: 4px; letter-spacing: 0.04em; }
+.stats { display: flex; gap: 14px; }
+.stats div { display: flex; flex-direction: column; align-items: flex-end; }
+.stats b { font-family: var(--f-mono); font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats span { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.08em; }
+
+.tag { align-self: flex-start; font-size: 0.72rem; letter-spacing: 0.08em; padding: 3px 8px; border: 1px solid var(--accent); color: var(--accent); border-radius: 2px; }
+
+.board { position: relative; flex: 1; min-height: 260px; touch-action: manipulation; }
+.bin {
+  position: absolute; box-sizing: border-box;
+  background: var(--bin);
+  border: 1.5px solid var(--bin-edge); border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 0; cursor: pointer; color: inherit; font: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bin::after { /* 칸 아래 라벨 */
+  content: attr(data-label); position: absolute; left: 0; right: 0; bottom: -18px;
+  text-align: center; font-family: var(--f-mono); font-size: 0.62rem; color: var(--muted); letter-spacing: 0.06em;
+}
+.bin.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.bin.full { border-color: var(--ok); }
+.bin.full::before { /* 정리 완료 표시등 */
+  content: ""; position: absolute; top: -7px; left: 50%; width: 8px; height: 8px; margin-left: -4px;
+  border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok);
+}
+.bin.hint { border-color: var(--accent); animation: pulse 0.9s ease-in-out 2; }
+.bin:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(240, 178, 58, 0.35); } }
+
+.piece {
+  position: absolute; left: 0; top: 0; pointer-events: none;
+  transition: transform 0.14s ease-out;
+  will-change: transform;
+}
+.piece::before { /* 리드선 */
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: var(--lead); border-radius: 1px;
+}
+.piece i {
+  position: absolute; top: 12%; bottom: 12%; left: 17%; right: 17%;
+  border-radius: 999px;
+  background: var(--c);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.22), inset 0 -3px 0 rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--f-mono); font-style: normal; font-weight: 600; font-size: 0.8rem; color: var(--t);
+}
+
+.tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tools button, .btn {
+  font: inherit; font-size: 0.9rem; color: var(--fg);
+  background: var(--mat-2); border: 1px solid var(--bin-edge); border-radius: 6px;
+  padding: 10px 6px; cursor: pointer; touch-action: manipulation;
+}
+.tools button:active, .btn:active { transform: translateY(1px); }
+.tools button:disabled { opacity: 0.4; cursor: default; }
+.tools button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1c1a14; font-weight: 700; }
+
+.code { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.code div { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.6rem; color: var(--muted); opacity: 0.45; }
+.code div.on { opacity: 1; color: var(--fg); }
+.code b { width: 100%; height: 8px; border-radius: 2px; background: var(--c); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.code-cap { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.06em; margin-bottom: -4px; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(12, 20, 23, 0.78);
+  display: flex; align-items: center; justify-content: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.card {
+  width: 100%; max-width: 380px; box-sizing: border-box;
+  background: var(--mat); border: 1px solid var(--bin-edge); border-radius: 10px;
+  padding: 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.card h2 { font-family: var(--f-display); font-weight: 400; font-size: 1.5rem; margin: 0; text-wrap: balance; }
+.card p { margin: 0; color: var(--muted); line-height: 1.55; }
+.stars { font-size: 1.6rem; letter-spacing: 0.15em; color: var(--accent); }
+.stars s { text-decoration: none; color: var(--bin-edge); }
+.row { display: flex; gap: 8px; }
+.row .btn { flex: 1; }
+.lv-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.lv-grid button { font-family: var(--f-mono); font-size: 0.85rem; padding: 8px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lv-grid button small { font-size: 0.55rem; color: var(--accent); letter-spacing: 0.1em; min-height: 0.7em; }
+.lv-grid button.hard { border-color: var(--accent); }
+.lv-grid button.cur { background: var(--bin-edge); }
+.mini { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .piece { transition: none; }
+  .bin.hint { animation: none; }
+}
+@media (max-height: 640px) { .code, .code-cap { display: none; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand">
+      <h1>부품함 정리</h1>
+      <span>같은 색띠 저항을 한 칸에 4개씩</span>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div><b id="s-lvl">1</b><span>레벨</span></div>
+      <div><b id="s-moves">0</b><span>내 수</span></div>
+      <div><b id="s-opt">0</b><span>최소 수</span></div>
+    </div>
+  </header>
+  <div class="tag" id="tag" hidden>고비 레벨 · 빈 칸이 하나뿐</div>
+  <main class="board" id="board" aria-label="부품함"></main>
+  <nav class="tools">
+    <button type="button" id="b-undo">되돌리기</button>
+    <button type="button" id="b-reset">다시</button>
+    <button type="button" id="b-hint">힌트</button>
+    <button type="button" id="b-levels">레벨</button>
+  </nav>
+  <div class="code-cap">저항 색띠 코드</div>
+  <div class="code" id="code"></div>
+</div>
+
+<div class="overlay" id="o-win" hidden>
+  <div class="card" role="dialog" aria-labelledby="w-title">
+    <h2 id="w-title">정리 끝</h2>
+    <div class="stars" id="w-stars"></div>
+    <p id="w-text"></p>
+    <div class="row">
+      <button type="button" class="btn" id="w-retry">다시 풀기</button>
+      <button type="button" class="btn primary" id="w-next">다음 레벨</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="o-levels" hidden>
+  <div class="card" role="dialog" aria-labelledby="l-title">
+    <h2 id="l-title">레벨</h2>
+    <div class="lv-grid" id="l-grid"></div>
+    <div class="mini">
+      <span>테두리 호박색 = 고비 레벨</span>
+      <button type="button" class="btn" id="l-sound">소리 켬</button>
+    </div>
+    <button type="button" class="btn" id="l-close">닫기</button>
+  </div>
+</div>
+
+<script>var APP_VERSION="0.1.0";var LEVELS=[{"n":1,"kind":"intro","empties":2,"start":["3438","8443","8438","",""],"opt":10},{"n":2,"kind":"intro","empties":2,"start":["6655","3535","6633","",""],"opt":7},{"n":3,"kind":"intro","empties":2,"start":["0520","5250","2250","",""],"opt":9},{"n":4,"kind":"intro","empties":2,"start":["6649","4690","4406","9009","",""],"opt":10},{"n":5,"kind":"intro","empties":2,"start":["1585","3388","5513","8311","",""],"opt":10},{"n":6,"kind":"normal","empties":2,"start":["4391","4351","4599","1954","1533","",""],"opt":16},{"n":7,"kind":"normal","empties":2,"start":["4632","2468","2338","2466","4883","",""],"opt":15},{"n":8,"kind":"normal","empties":2,"start":["3939","6243","6693","4922","4246","",""],"opt":16},{"n":9,"kind":"normal","empties":2,"start":["7054","7040","4053","5337","7345","",""],"opt":16},{"n":10,"kind":"hard","empties":1,"start":["2294","8248","4595","2895","9485",""],"opt":15},{"n":11,"kind":"normal","empties":2,"start":["3803","3819","2191","2039","8801","2092","",""],"opt":20},{"n":12,"kind":"normal","empties":2,"start":["5665","8378","3672","5623","7278","2835","",""],"opt":20},{"n":13,"kind":"normal","empties":2,"start":["1149","3690","4609","3941","3360","0641","",""],"opt":19},{"n":14,"kind":"normal","empties":2,"start":["5267","6747","9495","7264","5299","4526","",""],"opt":20},{"n":15,"kind":"hard","empties":1,"start":["9759","7404","5775","3904","3003","5394",""],"opt":19},{"n":16,"kind":"normal","empties":2,"start":["5898","8983","6367","9226","9773","6252","3557","",""],"opt":20},{"n":17,"kind":"normal","empties":2,"start":["5100","3830","4548","0516","6384","1534","8166","",""],"opt":21},{"n":18,"kind":"normal","empties":2,"start":["9202","0896","8718","1289","6767","7120","1906","",""],"opt":23},{"n":19,"kind":"normal","empties":2,"start":["3992","2381","8159","1619","2835","5665","8263","",""],"opt":21},{"n":20,"kind":"hard","empties":2,"start":["0371","4384","9159","0853","9019","8870","7553","7414","",""],"opt":27},{"n":21,"kind":"late","empties":2,"start":["1312","0427","0906","6396","3117","9042","7639","7244","",""],"opt":24},{"n":22,"kind":"late","empties":2,"start":["6371","8077","0211","7825","6630","2315","5586","3028","",""],"opt":22},{"n":23,"kind":"late","empties":2,"start":["9255","8007","5610","1281","0978","2778","2619","6956","",""],"opt":23},{"n":24,"kind":"late","empties":2,"start":["6877","5024","4054","8628","7206","5348","3357","6203","",""],"opt":25},{"n":25,"kind":"hard","empties":1,"start":["0615","3604","5461","0601","3549","4935","3991",""],"opt":23},{"n":26,"kind":"late","empties":2,"start":["1704","7031","4433","5090","9632","5296","9164","1627","2557","",""],"opt":27},{"n":27,"kind":"late","empties":2,"start":["3956","5628","7872","3393","6211","2086","7175","0901","5890","",""],"opt":28},{"n":28,"kind":"late","empties":2,"start":["3452","1168","8544","2713","7006","5686","3018","5370","2427","",""],"opt":27},{"n":29,"kind":"late","empties":2,"start":["8785","2124","3321","4194","8763","9746","6937","5591","8625","",""],"opt":27},{"n":30,"kind":"hard","empties":1,"start":["4417","7688","3617","3148","6313","8746",""],"opt":18}];</script>
+<script>
+// 부품함 정리 — 규칙·해결기·생성기·초보 봇. 게임(브라우저)과 도구(node)가 같은 파일을 쓴다.
+// 상태 = 부품함 문자열 배열. 문자 하나 = 부품 하나(저항 색띠 숫자 '0'~'9'), 왼쪽이 바닥.
+(function (root) {
+  'use strict';
+  const CAP = 4;
+
+  const last = (t) => t[t.length - 1];
+
+  function topRun(t) {
+    if (!t) return 0;
+    const c = last(t);
+    let n = 0;
+    for (let k = t.length - 1; k >= 0 && t[k] === c; k--) n++;
+    return n;
+  }
+
+  const uniform = (t) => t.length > 0 && topRun(t) === t.length;
+  const done = (t) => t.length === 0 || (t.length === CAP && uniform(t));
+  const isSolved = (s) => s.every(done);
+
+  function canMove(s, i, j) {
+    if (i === j) return false;
+    const a = s[i], b = s[j];
+    if (!a || b.length >= CAP) return false;
+    if (b.length && last(b) !== last(a)) return false;
+    if (done(a)) return false;                 // 이미 다 찬 칸은 건드리지 않는다
+    if (!b.length && uniform(a)) return false; // 한 색뿐인 칸을 빈 칸으로 옮기는 건 의미 없음
+    return true;
+  }
+
+  function legalMoves(s) {
+    const out = [];
+    for (let i = 0; i < s.length; i++) for (let j = 0; j < s.length; j++) if (canMove(s, i, j)) out.push([i, j]);
+    // 빈 칸이 여러 개면 첫 빈 칸으로 가는 수만 남긴다(같은 결과)
+    const firstEmpty = s.findIndex((t) => !t.length);
+    return out.filter(([, j]) => s[j].length || j === firstEmpty);
+  }
+
+  // 옮겨지는 개수 = 맨 위 같은 색 묶음 중 들어갈 만큼
+  function moveCount(s, i, j) {
+    return Math.min(topRun(s[i]), CAP - s[j].length);
+  }
+
+  function apply(s, i, j) {
+    const n = moveCount(s, i, j);
+    const r = s.slice();
+    r[j] = s[j] + s[i].slice(s[i].length - n);
+    r[i] = s[i].slice(0, s[i].length - n);
+    return r;
+  }
+
+  const key = (s) => s.slice().sort().join('|');
+
+  function colorCount(s) {
+    return new Set(s.join('')).size;
+  }
+
+  // 남은 최소 수의 하한: 한 수로 줄일 수 있는 색 묶음은 최대 1개
+  function h(s, colors) {
+    let runs = 0;
+    for (const t of s) {
+      if (!t.length) continue;
+      runs++;
+      for (let k = 1; k < t.length; k++) if (t[k] !== t[k - 1]) runs++;
+    }
+    return runs - colors;
+  }
+
+  // 최소 힙
+  class Heap {
+    constructor() { this.a = []; }
+    get size() { return this.a.length; }
+    push(x) {
+      const a = this.a; a.push(x);
+      let i = a.length - 1;
+      while (i > 0) { const p = (i - 1) >> 1; if (a[p].f <= a[i].f) break; [a[p], a[i]] = [a[i], a[p]]; i = p; }
+    }
+    pop() {
+      const a = this.a, top = a[0], x = a.pop();
+      if (a.length) {
+        a[0] = x; let i = 0;
+        for (;;) {
+          const l = 2 * i + 1, r = l + 1; let m = i;
+          if (l < a.length && a[l].f < a[m].f) m = l;
+          if (r < a.length && a[r].f < a[m].f) m = r;
+          if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m;
+        }
+      }
+      return top;
+    }
+  }
+
+  // A*. w=1이면 최소 수, w>1이면 빠르지만 최소가 아닐 수 있음.
+  // 결과 { path: [[i,j],...] | null, nodes, exhausted }
+  function solve(start, opt) {
+    const o = Object.assign({ w: 1, maxNodes: 300000 }, opt);
+    const colors = colorCount(start);
+    if (isSolved(start)) return { path: [], nodes: 0, exhausted: false };
+    const seen = new Map([[key(start), 0]]);
+    const heap = new Heap();
+    heap.push({ s: start, g: 0, f: o.w * h(start, colors), prev: null, mv: null });
+    let nodes = 0;
+    while (heap.size) {
+      const n = heap.pop();
+      if (++nodes > o.maxNodes) return { path: null, nodes, exhausted: true };
+      for (const [i, j] of legalMoves(n.s)) {
+        const s2 = apply(n.s, i, j), g = n.g + 1, k = key(s2);
+        if (seen.has(k) && seen.get(k) <= g) continue;
+        seen.set(k, g);
+        const node = { s: s2, g, f: g + o.w * h(s2, colors), prev: n, mv: [i, j] };
+        if (isSolved(s2)) {
+          const path = [];
+          for (let p = node; p.mv; p = p.prev) path.push(p.mv);
+          return { path: path.reverse(), nodes, exhausted: false };
+        }
+        heap.push(node);
+      }
+    }
+    return { path: null, nodes, exhausted: false }; // 풀 수 없음
+  }
+
+  // 힌트: 최소 해를 먼저 시도하고, 오래 걸리면 빠른 해
+  function hint(s) {
+    let r = solve(s, { maxNodes: 40000 });
+    if (!r.path && r.exhausted) r = solve(s, { w: 3, maxNodes: 120000 });
+    return r.path && r.path.length ? r.path[0] : null;
+  }
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // 색 colors개, 빈 칸 empties개. 시작부터 다 찬 칸이 있으면 다시 섞는다.
+  function generate(colors, seed, empties) {
+    const r = rng(seed);
+    const palette = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    for (let k = palette.length - 1; k > 0; k--) { const m = Math.floor(r() * (k + 1)); [palette[k], palette[m]] = [palette[m], palette[k]]; }
+    const use = palette.slice(0, colors);
+    for (let tries = 0; tries < 100; tries++) {
+      const balls = [];
+      for (const c of use) for (let k = 0; k < CAP; k++) balls.push(c);
+      for (let k = balls.length - 1; k > 0; k--) { const m = Math.floor(r() * (k + 1)); [balls[k], balls[m]] = [balls[m], balls[k]]; }
+      const s = [];
+      for (let t = 0; t < colors; t++) s.push(balls.slice(t * CAP, t * CAP + CAP).join(''));
+      for (let e = 0; e < (empties == null ? 2 : empties); e++) s.push('');
+      if (s.some((t) => /(.)\1\1/.test(t))) continue; // 같은 색 3개가 붙은 칸(거의 정리된 칸)은 피함
+      return s;
+    }
+    return null;
+  }
+
+  // 초보 봇: 앞을 안 보고 둔다. 같은 색 위로 놓는 수를 3배 선호, 방금 수를 바로 되돌리지 않음, 되돌리기 없음.
+  function novice(start, rand, maxMoves) {
+    let s = start, prev = null, moves = 0;
+    const visits = new Map();
+    while (moves < (maxMoves || 120)) {
+      if (isSolved(s)) return { solved: true, moves, end: 'solved' };
+      let ms = legalMoves(s).filter(([i, j]) => !(prev && i === prev[1] && j === prev[0]));
+      if (!ms.length) return { solved: false, moves, end: 'stuck' };
+      const w = ms.map(([, j]) => (s[j].length ? 3 : 1));
+      let x = rand() * w.reduce((a, b) => a + b, 0), pick = ms[0];
+      for (let k = 0; k < ms.length; k++) { x -= w[k]; if (x <= 0) { pick = ms[k]; break; } }
+      s = apply(s, pick[0], pick[1]); prev = pick; moves++;
+      const k = key(s), v = (visits.get(k) || 0) + 1;
+      visits.set(k, v);
+      if (v > 3) return { solved: false, moves, end: 'loop' };
+    }
+    return { solved: false, moves, end: 'long' };
+  }
+
+  // 레벨 하나의 재미 지표
+  function measure(start, trials, seed) {
+    const best = solve(start);
+    const rand = rng(seed || 1);
+    let solved = 0, stuck = 0;
+    const lens = [];
+    for (let k = 0; k < (trials || 200); k++) {
+      const r = novice(start, rand);
+      if (r.solved) { solved++; lens.push(r.moves); } else if (r.end === 'stuck') stuck++;
+    }
+    lens.sort((a, b) => a - b);
+    const fails = (trials || 200) - solved;
+    return {
+      opt: best.path ? best.path.length : null,
+      nodes: best.nodes,
+      novice: solved / (trials || 200),
+      noviceMedian: lens.length ? lens[lens.length >> 1] : null,
+      deadEnd: fails ? stuck / fails : 0,
+    };
+  }
+
+  const Core = { CAP, topRun, uniform, done, isSolved, canMove, legalMoves, moveCount, apply, key, solve, hint, rng, generate, novice, measure };
+  if (typeof module !== 'undefined' && module.exports) module.exports = Core;
+  else root.Core = Core;
+})(typeof self !== 'undefined' ? self : this);
+</script>
+<script>
+// 부품함 정리 — 화면·입력·저장. 규칙은 core.js(Core), 레벨은 빌드 때 넣는 LEVELS, 버전은 APP_VERSION.
+(function () {
+  'use strict';
+  const CAP = Core.CAP;
+  const COLORS = [ // 저항 색띠 코드 0~9: [이름, 색, 글자색]
+    ['검정', '#17191a', '#e8e8e8'], ['갈색', '#8a4b24', '#f6e7da'], ['빨강', '#d93a2f', '#fff1ee'],
+    ['주황', '#ef7d1a', '#2a1605'], ['노랑', '#f3d02b', '#2b2405'], ['초록', '#3ea052', '#effaf1'],
+    ['파랑', '#2f6fd6', '#eef3ff'], ['보라', '#8b4bc9', '#f6eeff'], ['회색', '#9aa1a6', '#1d2124'],
+    ['흰색', '#f2f2ec', '#25282a'],
+  ];
+  const SAVE_KEY = 'partsSort.save.v1';
+  const q = new URLSearchParams(location.search);
+  const MUTE = q.get('mute') === '1';
+  const $ = (id) => document.getElementById(id);
+
+  // ---- 저장 (없거나 막혀도 게임은 돈다) ----
+  function load() {
+    const d = { v: 1, unlocked: 1, best: {}, sound: true };
+    try { return Object.assign(d, JSON.parse(localStorage.getItem(SAVE_KEY)) || {}); } catch (e) { return d; }
+  }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* 저장 불가 환경 */ } }
+  const data = load();
+
+  // ---- 소리 (첫 터치 뒤 코드로 합성) ----
+  let ac = null;
+  function tone(f, t0, dur, type, vol) {
+    if (MUTE || !data.sound) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + (t0 || 0);
+      o.type = type || 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(vol || 0.12, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) { /* 소리 없는 환경 */ }
+  }
+  const sfx = {
+    pick: () => tone(660, 0, 0.05),
+    drop: () => tone(440, 0, 0.07),
+    full: () => { tone(880, 0, 0.12, 'sine'); tone(1320, 0.07, 0.16, 'sine', 0.08); },
+    win: () => [523, 659, 784, 1047].forEach((f, k) => tone(f, k * 0.09, 0.22, 'sine', 0.1)),
+    no: () => tone(150, 0, 0.08, 'square', 0.05),
+  };
+  const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* 진동 없음 */ } };
+
+  // ---- 상태 ----
+  let lv = null;          // 지금 레벨 정보
+  let s = [];             // 부품함 문자열 배열(core 형식)
+  let ids = [];           // 같은 모양의 부품 id 배열(움직임 연출용)
+  let hist = [];          // 되돌리기용 [s, ids]
+  let sel = -1, moves = 0, hints = 0, busy = false;
+  const els = {};         // id → 부품 요소
+  let geo = null;         // 칸 위치·크기
+
+  const board = $('board');
+
+  function startLevel(n, keep) {
+    lv = LEVELS[Math.max(1, Math.min(LEVELS.length, n)) - 1];
+    s = keep ? keep.s : lv.start.slice();
+    let uid = 0;
+    ids = s.map((t) => Array.from(t, () => uid++));
+    hist = []; sel = -1; moves = keep ? keep.moves : 0; hints = 0; busy = false;
+    board.innerHTML = '';
+    for (const k in els) delete els[k];
+    s.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'bin'; b.dataset.i = i; b.dataset.label = String.fromCharCode(65 + i);
+      b.setAttribute('aria-label', `${b.dataset.label} 칸`);
+      board.appendChild(b);
+    });
+    s.forEach((t, i) => Array.from(t).forEach((c, k) => {
+      const p = document.createElement('div');
+      const col = COLORS[+c];
+      p.className = 'piece';
+      p.style.setProperty('--c', col[1]); p.style.setProperty('--t', col[2]);
+      p.innerHTML = `<i>${c}</i>`;
+      board.appendChild(p);
+      els[ids[i][k]] = p;
+    }));
+    $('o-win').hidden = true;
+    $('tag').hidden = lv.kind !== 'hard';
+    $('tag').textContent = lv.empties === 1 ? '고비 레벨 · 빈 칸이 하나뿐' : '고비 레벨 · 색이 많음';
+    const used = new Set(lv.start.join(''));
+    document.querySelectorAll('#code div').forEach((d, k) => d.classList.toggle('on', used.has(String(k))));
+    layout(true);
+    render();
+  }
+
+  // 칸 배치: 6칸 이하는 한 줄, 넘으면 두 줄
+  function layout(instant) {
+    const W = board.clientWidth, H = board.clientHeight, n = s.length;
+    const rows = n > 6 ? 2 : 1, per = Math.ceil(n / rows);
+    const gap = Math.max(8, Math.min(16, W * 0.03));
+    // 칸 높이 = 부품 4개 + 들어 올릴 자리, 줄 사이 28px(라벨 포함)
+    const dims = (w) => { const pH = w * 0.42, bh = pH * CAP + 8, lift = pH * 1.15; return { pH, bh, lift, total: rows * (bh + lift) + (rows - 1) * 28 + 18 }; };
+    let bw = Math.min(78, (W - gap * (per - 1)) / per);
+    while (dims(bw).total > H && bw > 34) bw -= 2; // 화면 높이에 맞춰 줄임
+    const { pH, bh, lift, total } = dims(bw);
+    const y0 = Math.max(0, (H - total) / 2);
+    geo = { bw, bh, pH, lift, pos: [] };
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / per), inRow = r === rows - 1 ? n - per * (rows - 1) : per, c = i - r * per;
+      const rowW = inRow * bw + (inRow - 1) * gap;
+      const x = (W - rowW) / 2 + c * (bw + gap);
+      const y = y0 + r * (bh + lift + 28) + lift;
+      geo.pos.push([x, y]);
+      const b = board.children[i];
+      b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = bw + 'px'; b.style.height = bh + 'px';
+    }
+    for (const k in els) { els[k].style.width = bw + 'px'; els[k].style.height = pH + 'px'; els[k].querySelector('i').style.fontSize = Math.max(10, pH * 0.5) + 'px'; }
+    if (instant) for (const k in els) els[k].style.transition = 'none';
+    placeAll();
+    if (instant) requestAnimationFrame(() => { for (const k in els) els[k].style.transition = ''; });
+  }
+
+  const slotY = (i, k) => geo.pos[i][1] + geo.bh - 4 - (k + 1) * geo.pH;
+  function put(id, x, y) { els[id].style.transform = `translate(${x}px, ${y}px)`; }
+
+  function placeAll() {
+    const run = sel >= 0 ? Core.topRun(s[sel]) : 0;
+    ids.forEach((col, i) => col.forEach((id, k) => {
+      const up = i === sel && k >= col.length - run ? geo.lift : 0;
+      put(id, geo.pos[i][0], slotY(i, k) - up);
+    }));
+  }
+
+  function render() {
+    $('s-lvl').textContent = lv.n;
+    $('s-moves').textContent = moves;
+    $('s-opt').textContent = lv.opt;
+    $('b-undo').disabled = !hist.length || busy;
+    [...board.querySelectorAll('.bin')].forEach((b, i) => {
+      b.classList.toggle('sel', i === sel);
+      b.classList.toggle('full', s[i].length === CAP && Core.uniform(s[i]));
+    });
+  }
+
+  // 게임에서 허용하는 수(해결기보다 느슨함: 한 색 칸을 빈 칸으로 옮기는 것도 허용)
+  function allowed(i, j) {
+    const a = s[i], b = s[j];
+    return i !== j && a.length > 0 && b.length < CAP && (!b.length || b[b.length - 1] === a[a.length - 1]);
+  }
+
+  function doMove(i, j) {
+    const n = Core.moveCount(s, i, j);
+    hist.push([s.slice(), ids.map((c) => c.slice())]);
+    const moving = ids[i].splice(ids[i].length - n, n);
+    ids[j].push(...moving);
+    s = Core.apply(s, i, j);
+    moves++; sel = -1; busy = true;
+    // 연출: 들어 올림 → 대상 칸 위로 → 내려놓음
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const topY = Math.min(geo.pos[i][1], geo.pos[j][1]) - geo.lift;
+    moving.forEach((id, k) => put(id, geo.pos[i][0], topY - k * geo.pH));
+    const finish = () => {
+      placeAll(); busy = false; sfx.drop(); buzz(8);
+      if (s[j].length === CAP && Core.uniform(s[j])) { sfx.full(); buzz(20); }
+      render();
+      if (Core.isSolved(s)) setTimeout(win, 260);
+    };
+    if (reduce) { finish(); return; }
+    setTimeout(() => {
+      moving.forEach((id, k) => put(id, geo.pos[j][0], topY - k * geo.pH));
+      setTimeout(finish, 140);
+    }, 140);
+    render();
+  }
+
+  function tap(i) {
+    if (busy || !$('o-win').hidden) return;
+    if (sel < 0) {
+      if (!s[i].length) return;
+      sel = i; sfx.pick();
+    } else if (sel === i) {
+      sel = -1;
+    } else if (allowed(sel, i)) {
+      doMove(sel, i); return;
+    } else {
+      sfx.no();
+      sel = s[i].length ? i : -1;
+    }
+    placeAll(); render();
+  }
+
+  function undo() {
+    if (busy || !hist.length) return;
+    [s, ids] = hist.pop();
+    moves++; // 되돌리기도 한 수로 센다(최소 수 비교를 정직하게)
+    sel = -1; placeAll(); render();
+  }
+
+  function hint() {
+    if (busy) return;
+    const mv = Core.hint(s);
+    if (!mv) return;
+    hints++;
+    const bins = board.querySelectorAll('.bin');
+    bins.forEach((b) => b.classList.remove('hint'));
+    sel = mv[0]; placeAll(); render();
+    bins[mv[1]].classList.add('hint');
+    setTimeout(() => bins[mv[1]] && bins[mv[1]].classList.remove('hint'), 1900);
+  }
+
+  function starsOf(m, opt) { return m <= opt ? 3 : m <= opt + Math.ceil(opt * 0.25) ? 2 : 1; }
+
+  function win() {
+    sfx.win(); buzz([20, 40, 20]);
+    const st = starsOf(moves, lv.opt);
+    const prev = data.best[lv.n];
+    if (!prev || moves < prev) data.best[lv.n] = moves;
+    data.unlocked = Math.max(data.unlocked, Math.min(LEVELS.length, lv.n + 1));
+    save();
+    $('w-stars').innerHTML = '★'.repeat(st) + '<s>' + '★'.repeat(3 - st) + '</s>';
+    $('w-text').textContent = `${moves}수로 정리했습니다. 최소 ${lv.opt}수` +
+      (hints ? ` · 힌트 ${hints}번` : '') + (st < 3 ? `. 별 3개는 ${lv.opt}수 이내.` : '.');
+    $('w-next').hidden = lv.n >= LEVELS.length;
+    $('o-win').hidden = false;
+    $('w-next').focus();
+  }
+
+  function openLevels() {
+    const g = $('l-grid'); g.innerHTML = '';
+    LEVELS.forEach((l) => {
+      const b = document.createElement('button');
+      const best = data.best[l.n], st = best ? starsOf(best, l.opt) : 0;
+      b.type = 'button'; b.className = 'btn' + (l.kind === 'hard' ? ' hard' : '') + (l.n === lv.n ? ' cur' : '');
+      b.disabled = l.n > data.unlocked && !q.has('level');
+      b.innerHTML = `${l.n}<small>${'★'.repeat(st)}</small>`;
+      b.onclick = () => { $('o-levels').hidden = true; startLevel(l.n); };
+      g.appendChild(b);
+    });
+    $('l-sound').textContent = data.sound ? '소리 켬' : '소리 끔';
+    $('o-levels').hidden = false;
+  }
+
+  // ---- 연결 ----
+  $('code').innerHTML = COLORS.map((c, k) => `<div><b style="--c:${c[1]}"></b>${k} ${c[0]}</div>`).join('');
+  board.addEventListener('click', (e) => { const b = e.target.closest('.bin'); if (b) tap(+b.dataset.i); });
+  $('b-undo').onclick = undo;
+  $('b-reset').onclick = () => { if (!busy) startLevel(lv.n); };
+  $('b-hint').onclick = hint;
+  $('b-levels').onclick = openLevels;
+  $('l-close').onclick = () => { $('o-levels').hidden = true; };
+  $('l-sound').onclick = () => { data.sound = !data.sound; save(); $('l-sound').textContent = data.sound ? '소리 켬' : '소리 끔'; };
+  $('w-retry').onclick = () => startLevel(lv.n);
+  $('w-next').onclick = () => startLevel(lv.n + 1);
+  addEventListener('resize', () => lv && layout(true));
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { $('o-levels').hidden = true; sel = -1; placeAll(); render(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo();
+  });
+
+  // 텔레그램 미니앱 안이면 전체 높이로(스크립트는 텔레그램이 넣어 줄 때만 존재)
+  try { const tg = window.Telegram && Telegram.WebApp; if (tg) { tg.ready(); tg.expand(); } } catch (e) { /* 텔레그램 밖 */ }
+
+  // 시험용: ?level=N 으로 바로 시작, 스모크·봇은 window.__game 사용
+  window.__game = {
+    version: APP_VERSION,
+    get level() { return lv.n; }, get state() { return s.slice(); }, get moves() { return moves; },
+    tap, solution: () => (Core.solve(s).path || []), won: () => !$('o-win').hidden,
+  };
+
+  // 아티팩트 재게시 때 지금 판을 이어서
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ n: lv && lv.n, s, moves }));
+  function boot(prev) {
+    const n = +q.get('level') || (prev && prev.n) || Math.min(data.unlocked, LEVELS.length);
+    startLevel(n, prev && prev.n === n && prev.s ? { s: prev.s, moves: prev.moves || 0 } : null);
+  }
+  if (hot && hot.ready) hot.ready(boot); else boot(hot && hot.data);
+})();
+</script>
+<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

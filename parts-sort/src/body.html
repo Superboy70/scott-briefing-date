@@ -1,0 +1,47 @@
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand">
+      <h1>부품함 정리</h1>
+      <span>같은 색띠 저항을 한 칸에 4개씩</span>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div><b id="s-lvl">1</b><span>레벨</span></div>
+      <div><b id="s-moves">0</b><span>내 수</span></div>
+      <div><b id="s-opt">0</b><span>최소 수</span></div>
+    </div>
+  </header>
+  <div class="tag" id="tag" hidden>고비 레벨 · 빈 칸이 하나뿐</div>
+  <main class="board" id="board" aria-label="부품함"></main>
+  <nav class="tools">
+    <button type="button" id="b-undo">되돌리기</button>
+    <button type="button" id="b-reset">다시</button>
+    <button type="button" id="b-hint">힌트</button>
+    <button type="button" id="b-levels">레벨</button>
+  </nav>
+  <div class="code-cap">저항 색띠 코드</div>
+  <div class="code" id="code"></div>
+</div>
+
+<div class="overlay" id="o-win" hidden>
+  <div class="card" role="dialog" aria-labelledby="w-title">
+    <h2 id="w-title">정리 끝</h2>
+    <div class="stars" id="w-stars"></div>
+    <p id="w-text"></p>
+    <div class="row">
+      <button type="button" class="btn" id="w-retry">다시 풀기</button>
+      <button type="button" class="btn primary" id="w-next">다음 레벨</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="o-levels" hidden>
+  <div class="card" role="dialog" aria-labelledby="l-title">
+    <h2 id="l-title">레벨</h2>
+    <div class="lv-grid" id="l-grid"></div>
+    <div class="mini">
+      <span>테두리 호박색 = 고비 레벨</span>
+      <button type="button" class="btn" id="l-sound">소리 켬</button>
+    </div>
+    <button type="button" class="btn" id="l-close">닫기</button>
+  </div>
+</div>

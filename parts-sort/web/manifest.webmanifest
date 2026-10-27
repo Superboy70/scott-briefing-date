@@ -1,0 +1,18 @@
+{
+  "name": "부품함 정리",
+  "short_name": "부품함 정리",
+  "lang": "ko",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c2a2f",
+  "theme_color": "#1c2a2f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
